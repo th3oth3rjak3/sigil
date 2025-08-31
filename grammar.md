@@ -5,7 +5,6 @@ statement         = variable_def
                   | expression_statement ;
 
 variable_def      = "let" IDENTIFIER [ ":" type ] "=" expression ";" ;
-print_statement   = "print" expression ";" ;
 expression_statement = expression ";" ;
 
 expression        = equality ;

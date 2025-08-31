@@ -166,15 +166,6 @@ func (l *Lexer) NextToken() Token {
 	return tok
 }
 
-func (l *Lexer) newToken(t TokenType, ch string) Token {
-	return Token{
-		Type:    t,
-		Literal: ch,
-		Line:    l.line,
-		Column:  l.column,
-	}
-}
-
 func (l *Lexer) newTokenAt(t TokenType, ch string, line, column int) Token {
 	return Token{
 		Type:    t,

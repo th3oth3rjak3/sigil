@@ -18,8 +18,6 @@ func (tt TokenType) String() string {
 	// Keywords
 	case LET:
 		return "LET"
-	case PRINT:
-		return "PRINT"
 	case FN:
 		return "FN"
 	case RETURN:

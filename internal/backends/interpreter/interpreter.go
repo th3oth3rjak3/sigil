@@ -122,6 +122,8 @@ func (i *Interpreter) evaluateExpression(expr ast.Expression) (Value, error) {
 	switch e := expr.(type) {
 	case *ast.NumberLiteral:
 		return i.evaluateNumberLiteral(e)
+	case *ast.StringLiteral:
+		return i.evaluateStringLiteral(e)
 	case *ast.BooleanLiteral:
 		return i.evaluateBooleanLiteral(e)
 	case *ast.Identifier:
@@ -141,6 +143,10 @@ func (i *Interpreter) evaluateNumberLiteral(literal *ast.NumberLiteral) (Value, 
 		return nil, fmt.Errorf("invalid number literal: %s", literal.Value)
 	}
 	return &NumberValue{Value: value}, nil
+}
+
+func (i *Interpreter) evaluateStringLiteral(literal *ast.StringLiteral) (Value, error) {
+	return &StringValue{Value: literal.String()}, nil
 }
 
 func (i *Interpreter) evaluateBooleanLiteral(literal *ast.BooleanLiteral) (Value, error) {

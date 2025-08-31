@@ -128,6 +128,22 @@ func (nl *NumberLiteral) TreeString(prefix string, isLast bool) string {
 	return prefix + connector + "NumberLiteral: " + nl.Value + "\n"
 }
 
+type StringLiteral struct {
+	Token lexer.Token
+	Value string
+}
+
+func (sl *StringLiteral) expr()          {}
+func (sl *StringLiteral) String() string { return sl.Value }
+
+func (sl *StringLiteral) TreeString(prefix string, isLast bool) string {
+	connector := "├── "
+	if isLast {
+		connector = "└── "
+	}
+	return prefix + connector + "StringLiteral: " + sl.Value + "\n"
+}
+
 // PrintStatement represents `print <expression>;`
 type PrintStatement struct {
 	Token      lexer.Token // The 'print' token

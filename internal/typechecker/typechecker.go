@@ -205,6 +205,8 @@ func (tc *TypeChecker) CheckExpression(expr ast.Expression) Type {
 	switch e := expr.(type) {
 	case *ast.NumberLiteral:
 		return &NumberType{}
+	case *ast.StringLiteral:
+		return &StringType{}
 	case *ast.BooleanLiteral:
 		return &BoolType{}
 	case *ast.Identifier:
