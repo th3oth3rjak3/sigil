@@ -91,22 +91,11 @@ func (i *Interpreter) Execute(program *ast.Program) error {
 
 func (i *Interpreter) executeStatement(stmt ast.Statement) error {
 	switch s := stmt.(type) {
-	case *ast.PrintStatement:
-		return i.executePrintStatement(s)
 	case *ast.LetStatement:
 		return i.executeLetStatement(s)
 	default:
 		return fmt.Errorf("unknown statement type: %T", stmt)
 	}
-}
-
-func (i *Interpreter) executePrintStatement(stmt *ast.PrintStatement) error {
-	value, err := i.evaluateExpression(stmt.Expression)
-	if err != nil {
-		return err
-	}
-	fmt.Println(value.String())
-	return nil
 }
 
 func (i *Interpreter) executeLetStatement(stmt *ast.LetStatement) error {

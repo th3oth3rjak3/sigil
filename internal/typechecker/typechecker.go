@@ -149,20 +149,12 @@ func (tc *TypeChecker) CheckProgram(program *ast.Program) Type {
 
 func (tc *TypeChecker) CheckStatement(stmt ast.Statement) Type {
 	switch s := stmt.(type) {
-	case *ast.PrintStatement:
-		return tc.CheckPrintStatement(s)
 	case *ast.LetStatement:
 		return tc.CheckLetStatement(s)
 	default:
 		tc.addError(fmt.Sprintf("unknown statement type: %T", stmt), 0, 0)
 		return &VoidType{}
 	}
-}
-
-func (tc *TypeChecker) CheckPrintStatement(stmt *ast.PrintStatement) Type {
-	// Print statements can print any type, so just check the expression is valid
-	tc.CheckExpression(stmt.Expression)
-	return &VoidType{}
 }
 
 func (tc *TypeChecker) CheckLetStatement(stmt *ast.LetStatement) Type {

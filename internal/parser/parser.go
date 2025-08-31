@@ -92,8 +92,6 @@ func (p *Parser) parseStatement() ast.Statement {
 	switch p.curToken.Type {
 	case lexer.LET:
 		return p.parseLetStatement()
-	case lexer.PRINT:
-		return p.parsePrintStatement()
 	default:
 		return nil
 	}
@@ -123,19 +121,6 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 
 	p.nextToken() // move to expression
 	stmt.Value = p.parseExpression(LOWEST)
-
-	if p.peekTokenIs(lexer.SEMICOLON) {
-		p.nextToken()
-	}
-
-	return stmt
-}
-
-func (p *Parser) parsePrintStatement() *ast.PrintStatement {
-	stmt := &ast.PrintStatement{Token: p.curToken}
-
-	p.nextToken() // move to expression
-	stmt.Expression = p.parseExpression(LOWEST)
 
 	if p.peekTokenIs(lexer.SEMICOLON) {
 		p.nextToken()

@@ -144,39 +144,6 @@ func (sl *StringLiteral) TreeString(prefix string, isLast bool) string {
 	return prefix + connector + "StringLiteral: " + sl.Value + "\n"
 }
 
-// PrintStatement represents `print <expression>;`
-type PrintStatement struct {
-	Token      lexer.Token // The 'print' token
-	Expression Expression
-}
-
-func (ps *PrintStatement) stmt() {}
-
-func (ps *PrintStatement) String() string {
-	return ps.Token.Literal + " " + ps.Expression.String() + ";"
-}
-
-func (ps *PrintStatement) TreeString(prefix string, isLast bool) string {
-	var out strings.Builder
-
-	connector := "├── "
-	if isLast {
-		connector = "└── "
-	}
-
-	out.WriteString(prefix + connector + "PrintStatement\n")
-
-	childPrefix := prefix
-	if isLast {
-		childPrefix += "    "
-	} else {
-		childPrefix += "│   "
-	}
-
-	out.WriteString(ps.Expression.TreeString(childPrefix, true))
-	return out.String()
-}
-
 // InfixExpression represents binary operations like a + b
 type InfixExpression struct {
 	Token    lexer.Token // The operator token, e.g. +
