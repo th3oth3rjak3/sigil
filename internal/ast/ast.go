@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"bytes"
 	"fmt"
 	"sigil/internal/lexer"
 	"strings"
@@ -8,6 +9,7 @@ import (
 
 // Node represents any node in the AST
 type Node interface {
+	TokenLiteral() string
 	String() string
 	TreeString(prefix string, isLast bool) string
 }
@@ -30,11 +32,11 @@ type Program struct {
 }
 
 func (p *Program) String() string {
-	var out string
+	var out bytes.Buffer
 	for _, s := range p.Statements {
-		out += s.String()
+		out.WriteString(s.String())
 	}
-	return out
+	return out.String()
 }
 
 func (p *Program) TreeString(prefix string, isLast bool) string {
@@ -55,15 +57,17 @@ type LetStatement struct {
 	Value    Expression
 }
 
-func (ls *LetStatement) stmt() {}
-
+func (ls *LetStatement) stmt()                {}
+func (ls *LetStatement) TokenLiteral() string { return "let" }
 func (ls *LetStatement) String() string {
-	out := ls.Token.Literal + " " + ls.Name.String()
+	var out bytes.Buffer
+	out.WriteString(ls.TokenLiteral() + " ")
+	out.WriteString(ls.Name.String())
 	if ls.TypeHint != nil {
-		out += ": " + ls.TypeHint.String()
+		out.WriteString(": " + ls.TypeHint.String())
 	}
-	out += " = " + ls.Value.String() + ";"
-	return out
+	out.WriteString(" = " + ls.Value.String() + ";")
+	return out.String()
 }
 
 func (ls *LetStatement) TreeString(prefix string, isLast bool) string {
@@ -100,8 +104,9 @@ type Identifier struct {
 	Value string
 }
 
-func (i *Identifier) expr()          {}
-func (i *Identifier) String() string { return i.Value }
+func (i *Identifier) expr()                {}
+func (i *Identifier) String() string       { return i.Value }
+func (i *Identifier) TokenLiteral() string { return i.Value }
 
 func (i *Identifier) TreeString(prefix string, isLast bool) string {
 	connector := "├── "
@@ -117,8 +122,9 @@ type NumberLiteral struct {
 	Value string
 }
 
-func (nl *NumberLiteral) expr()          {}
-func (nl *NumberLiteral) String() string { return nl.Value }
+func (nl *NumberLiteral) expr()                {}
+func (nl *NumberLiteral) String() string       { return nl.Value }
+func (nl *NumberLiteral) TokenLiteral() string { return nl.Value }
 
 func (nl *NumberLiteral) TreeString(prefix string, isLast bool) string {
 	connector := "├── "
@@ -133,8 +139,9 @@ type StringLiteral struct {
 	Value string
 }
 
-func (sl *StringLiteral) expr()          {}
-func (sl *StringLiteral) String() string { return sl.Value }
+func (sl *StringLiteral) expr()                {}
+func (sl *StringLiteral) TokenLiteral() string { return sl.Value }
+func (sl *StringLiteral) String() string       { return sl.Value }
 
 func (sl *StringLiteral) TreeString(prefix string, isLast bool) string {
 	connector := "├── "
@@ -152,8 +159,8 @@ type InfixExpression struct {
 	Right    Expression
 }
 
-func (ie *InfixExpression) expr() {}
-
+func (ie *InfixExpression) expr()                {}
+func (ie *InfixExpression) TokenLiteral() string { return "TODO" }
 func (ie *InfixExpression) String() string {
 	return "(" + ie.Left.String() + " " + ie.Operator + " " + ie.Right.String() + ")"
 }
@@ -188,8 +195,8 @@ type PrefixExpression struct {
 	Right    Expression
 }
 
-func (pe *PrefixExpression) expr() {}
-
+func (pe *PrefixExpression) expr()                {}
+func (pe *PrefixExpression) TokenLiteral() string { return "TODO" }
 func (pe *PrefixExpression) String() string {
 	return "(" + pe.Operator + pe.Right.String() + ")"
 }
@@ -222,8 +229,8 @@ type BooleanLiteral struct {
 	Value bool
 }
 
-func (bl *BooleanLiteral) expr() {}
-
+func (bl *BooleanLiteral) expr()                {}
+func (bl *BooleanLiteral) TokenLiteral() string { return bl.String() }
 func (bl *BooleanLiteral) String() string {
 	return fmt.Sprintf("%t", bl.Value)
 }
@@ -234,4 +241,70 @@ func (bl *BooleanLiteral) TreeString(prefix string, isLast bool) string {
 		connector = "└── "
 	}
 	return prefix + connector + "BooleanLiteral: " + bl.String() + "\n"
+}
+
+// ReturnStatement is a return value from a function.
+type ReturnStatement struct {
+	Token       lexer.Token // The "return" token
+	ReturnValue Expression  // The expression value to return
+}
+
+func (rs *ReturnStatement) stmt()                {}
+func (rs *ReturnStatement) TokenLiteral() string { return rs.Token.Literal }
+func (rs *ReturnStatement) String() string {
+	var out bytes.Buffer
+
+	out.WriteString(rs.TokenLiteral() + " ")
+	if rs.ReturnValue != nil {
+		out.WriteString(rs.ReturnValue.String())
+	}
+
+	out.WriteString(";")
+
+	return out.String()
+}
+func (rs *ReturnStatement) TreeString(prefix string, isLast bool) string {
+	var out strings.Builder
+
+	connector := "├── "
+	if isLast {
+		connector = "└── "
+	}
+
+	out.WriteString(prefix + connector + "ReturnStatement: " + rs.TokenLiteral() + "\n")
+
+	childPrefix := prefix
+	if isLast {
+		childPrefix += "    "
+	} else {
+		childPrefix += "│   "
+	}
+
+	if rs.ReturnValue != nil {
+		out.WriteString(rs.ReturnValue.TreeString(childPrefix, true))
+	}
+
+	return out.String()
+}
+
+type ExpressionStatement struct {
+	Token      lexer.Token // The first token of the expression
+	Expression Expression
+}
+
+func (es *ExpressionStatement) stmt()                {}
+func (es *ExpressionStatement) TokenLiteral() string { return es.Token.Literal }
+func (es *ExpressionStatement) String() string {
+	if es.Expression != nil {
+		return es.Expression.String()
+	}
+
+	return ""
+}
+func (es *ExpressionStatement) TreeString(prefix string, isLast bool) string {
+	connector := "├── "
+	if isLast {
+		connector = "└── "
+	}
+	return prefix + connector + "ExpressionStatement: " + es.String() + "\n"
 }

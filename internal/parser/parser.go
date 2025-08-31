@@ -10,9 +10,12 @@ import (
 const (
 	_ int = iota
 	LOWEST
-	SUM     // + -
-	PRODUCT // * /
-	PREFIX  // -x, !x
+	EQUALS       // ==
+	LESS_GREATER // < or >
+	SUM          // + -
+	PRODUCT      // * /
+	PREFIX       // -x, !x
+	CALL         // myFunction(x)
 )
 
 var precedences = map[lexer.TokenType]int{
@@ -28,12 +31,11 @@ type (
 )
 
 type Parser struct {
-	l *lexer.Lexer
+	l      *lexer.Lexer
+	errors []string
 
 	curToken  lexer.Token
 	peekToken lexer.Token
-
-	errors []string
 
 	prefixParseFns map[lexer.TokenType]prefixParseFn
 	infixParseFns  map[lexer.TokenType]infixParseFn
@@ -53,7 +55,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(lexer.IDENT, p.parseIdentifier)
 	p.registerPrefix(lexer.NUMBER, p.parseNumberLiteral)
 	p.registerPrefix(lexer.STRING, p.parseStringLiteral)
-	p.registerPrefix(lexer.LPAREN, p.parseGroupedExpression)
+	p.registerPrefix(lexer.LEFT_PAREN, p.parseGroupedExpression)
 	p.registerPrefix(lexer.MINUS, p.parsePrefixExpression)
 	p.registerPrefix(lexer.BANG, p.parsePrefixExpression)
 	p.registerPrefix(lexer.TRUE, p.parseBooleanLiteral)
@@ -79,9 +81,7 @@ func (p *Parser) ParseProgram() *ast.Program {
 
 	for p.curToken.Type != lexer.EOF {
 		stmt := p.parseStatement()
-		if stmt != nil {
-			program.Statements = append(program.Statements, stmt)
-		}
+		program.Statements = append(program.Statements, stmt)
 		p.nextToken()
 	}
 
@@ -92,8 +92,10 @@ func (p *Parser) parseStatement() ast.Statement {
 	switch p.curToken.Type {
 	case lexer.LET:
 		return p.parseLetStatement()
+	case lexer.RETURN:
+		return p.parseReturnStatment()
 	default:
-		return nil
+		return p.parseExpressionStatement()
 	}
 }
 
@@ -121,6 +123,31 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 
 	p.nextToken() // move to expression
 	stmt.Value = p.parseExpression(LOWEST)
+
+	if p.peekTokenIs(lexer.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return stmt
+}
+
+func (p *Parser) parseReturnStatment() *ast.ReturnStatement {
+	stmt := &ast.ReturnStatement{Token: p.curToken}
+	p.nextToken()
+
+	// TODO: for now skip expression parsing until we get that working
+	// NOTE: this causes a nil pointer panic when printing the parse tree.
+	for !p.curTokenIs(lexer.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return stmt
+}
+
+func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
+	stmt := &ast.ExpressionStatement{Token: p.curToken}
+
+	stmt.Expression = p.parseExpression(LOWEST)
 
 	if p.peekTokenIs(lexer.SEMICOLON) {
 		p.nextToken()
@@ -168,7 +195,7 @@ func (p *Parser) parseStringLiteral() ast.Expression {
 func (p *Parser) parseGroupedExpression() ast.Expression {
 	p.nextToken()
 	exp := p.parseExpression(LOWEST)
-	if !p.expectPeek(lexer.RPAREN) {
+	if !p.expectPeek(lexer.RIGHT_PAREN) {
 		return nil
 	}
 	return exp

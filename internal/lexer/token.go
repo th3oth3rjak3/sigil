@@ -1,125 +1,53 @@
 package lexer
 
-type TokenType int
-
-func (tt TokenType) String() string {
-	switch tt {
-	case ILLEGAL:
-		return "ILLEGAL"
-	case EOF:
-		return "EOF"
-	case IDENT:
-		return "IDENT"
-	case NUMBER:
-		return "NUMBER"
-	case STRING:
-		return "STRING"
-
-	// Keywords
-	case LET:
-		return "LET"
-	case FN:
-		return "FN"
-	case RETURN:
-		return "RETURN"
-	case TRUE:
-		return "TRUE"
-	case FALSE:
-		return "FALSE"
-
-	// Operators
-	case ASSIGN:
-		return "ASSIGN" // =
-	case PLUS:
-		return "PLUS" // +
-	case MINUS:
-		return "MINUS" // -
-	case STAR:
-		return "STAR" // *
-	case SLASH:
-		return "SLASH" // /
-	case BANG:
-		return "BANG" // !
-
-	case EQEQ:
-		return "EQEQ" // ==
-	case NOTEQ:
-		return "NOTEQ" // !=
-	case LT:
-		return "LT" // <
-	case LTE:
-		return "LTE" // <=
-	case GT:
-		return "GT" // >
-	case GTE:
-		return "GTE" // >=
-	case ARROW:
-		return "ARROW" // =>
-
-	// Delimiters
-	case COLON:
-		return "COLON" // :
-	case SEMICOLON:
-		return "SEMICOLON" // ;
-	case COMMA:
-		return "COMMA" // ,
-	case LPAREN:
-		return "LPAREN" // (
-	case RPAREN:
-		return "RPAREN" // )
-	case LBRACE:
-		return "LBRACE" // {
-	case RBRACE:
-		return "RBRACE" // }
-
-	default:
-		return "UNKNOWN"
-	}
-}
+type TokenType string
 
 const (
 	// Special Tokens
-	ILLEGAL TokenType = iota
-	EOF
+	ILLEGAL = "ILLEGAL"
+	EOF     = "EOF"
 
 	// Identifiers and Literals
-	IDENT
-	NUMBER
-	STRING
+	IDENT  = "IDENT"
+	NUMBER = "NUMBER"
+	STRING = "STRING"
 
 	// Keywords (some present now, more can be added later)
-	LET
-	PRINT
-	FN
-	RETURN
-	TRUE
-	FALSE
+	LET      = "LET"
+	FUNCTION = "FUNCTION"
+	RETURN   = "RETURN"
+	TRUE     = "TRUE"
+	FALSE    = "FALSE"
+	IF       = "IF"
+	ELSE     = "ELSE"
 
 	// Single-char Operators
-	ASSIGN // =
-	PLUS   // +
-	MINUS  // -
-	STAR   // *
-	SLASH  // /
-	BANG   // !
+	ASSIGN = "ASSIGN"
+	PLUS   = "PLUS"
+	MINUS  = "MINUS"
+	STAR   = "STAR"
+	SLASH  = "SLASH"
+	BANG   = "BANG"
 
 	// Multi-char / comparison
-	EQEQ  // ==
-	NOTEQ // !=
-	LT    // <
-	LTE   // <=
-	GT    // >
-	GTE   // >=
-	ARROW // =>
+	EQUAL                 = "EQUAL"
+	NOT_EQUAL             = "NOT_EQUAL"
+	LESS_THAN             = "LESS_THAN"
+	LESS_THAN_OR_EQUAL    = "LESS_THAN_OR_EQUAL"
+	GREATER_THAN          = "GREATER_THAN"
+	GREATER_THAN_OR_EQUAL = "GREATER_THAN_OR_EQUAL"
+	ARROW                 = "ARROW"
 
 	// Delimiters
-	COLON
-	SEMICOLON
-	COMMA
-	LPAREN
-	RPAREN
-	LBRACE
-	RBRACE
+	COLON         = "COLON"
+	SEMICOLON     = "SEMICOLON"
+	COMMA         = "COMMA"
+	LEFT_PAREN    = "LEFT_PAREN"
+	RIGHT_PAREN   = "RIGHT_PAREN"
+	LEFT_BRACE    = "LEFT_BRACE"
+	RIGHT_BRACE   = "RIGHT_BRACE"
+	LEFT_BRACKET  = "LEFT_BRACKET"
+	RIGHT_BRACKET = "RIGHT_BRACKET"
 )
 
 type Token struct {
@@ -131,11 +59,12 @@ type Token struct {
 
 var keywords = map[string]TokenType{
 	"let":    LET,
-	"print":  PRINT,
-	"fn":     FN,
+	"fun":    FUNCTION,
 	"return": RETURN,
 	"true":   TRUE,
 	"false":  FALSE,
+	"if":     IF,
+	"else":   ELSE,
 }
 
 func LookupIdent(ident string) TokenType {

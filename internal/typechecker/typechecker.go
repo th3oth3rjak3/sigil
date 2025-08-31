@@ -15,7 +15,8 @@ type Type interface {
 type NumberType struct{}
 type StringType struct{}
 type BoolType struct{}
-type VoidType struct{} // for statements that don't return values
+type VoidType struct{}    // for statements that don't return values
+type UnknownType struct{} // For errors during type checking
 
 func (nt *NumberType) String() string { return "Number" }
 func (nt *NumberType) Equals(other Type) bool {
@@ -38,6 +39,12 @@ func (bt *BoolType) Equals(other Type) bool {
 func (vt *VoidType) String() string { return "Void" }
 func (vt *VoidType) Equals(other Type) bool {
 	_, ok := other.(*VoidType)
+	return ok
+}
+
+func (ut *UnknownType) String() string { return "Unknown" }
+func (ut *UnknownType) Equals(other Type) bool {
+	_, ok := other.(*UnknownType)
 	return ok
 }
 
@@ -93,8 +100,9 @@ func (e *Environment) Set(name string, symbol *Symbol) {
 
 // Type Checker
 type TypeChecker struct {
-	env    *Environment
-	errors []*TypeError
+	env           *Environment
+	errors        []*TypeError
+	currentReturn Type // The expected return type of the enclosing function
 }
 
 func New() *TypeChecker {
@@ -123,7 +131,7 @@ func (tc *TypeChecker) HasErrors() bool {
 // Helper function to parse type annotations from identifiers
 func (tc *TypeChecker) parseTypeFromIdentifier(typeIdent *ast.Identifier) Type {
 	if typeIdent == nil {
-		return nil
+		return &UnknownType{}
 	}
 
 	switch typeIdent.Value {
@@ -135,7 +143,7 @@ func (tc *TypeChecker) parseTypeFromIdentifier(typeIdent *ast.Identifier) Type {
 		return &BoolType{}
 	default:
 		tc.addError(fmt.Sprintf("unknown type: %s", typeIdent.Value), typeIdent.Token.Line, typeIdent.Token.Column)
-		return nil
+		return &UnknownType{}
 	}
 }
 
@@ -151,9 +159,13 @@ func (tc *TypeChecker) CheckStatement(stmt ast.Statement) Type {
 	switch s := stmt.(type) {
 	case *ast.LetStatement:
 		return tc.CheckLetStatement(s)
+	case *ast.ReturnStatement:
+		return tc.CheckReturnStatement(s)
+	case *ast.ExpressionStatement:
+		return tc.CheckExpressionStatement(s)
 	default:
 		tc.addError(fmt.Sprintf("unknown statement type: %T", stmt), 0, 0)
-		return &VoidType{}
+		return &UnknownType{}
 	}
 }
 
@@ -161,14 +173,11 @@ func (tc *TypeChecker) CheckLetStatement(stmt *ast.LetStatement) Type {
 	// Type hint is mandatory for now
 	if stmt.TypeHint == nil {
 		tc.addError("type annotation is required for variable declarations", stmt.Token.Line, stmt.Token.Column)
-		return &VoidType{}
+		return &UnknownType{}
 	}
 
 	// Parse the declared type
 	declaredType := tc.parseTypeFromIdentifier(stmt.TypeHint)
-	if declaredType == nil {
-		return &VoidType{} // Error already reported in parseTypeFromIdentifier
-	}
 
 	// Check the value expression
 	valueType := tc.CheckExpression(stmt.Value)
@@ -193,6 +202,35 @@ func (tc *TypeChecker) CheckLetStatement(stmt *ast.LetStatement) Type {
 	return &VoidType{}
 }
 
+func (tc *TypeChecker) CheckReturnStatement(stmt *ast.ReturnStatement) Type {
+	if tc.currentReturn == nil {
+		tc.addError("return statement outside of function", stmt.Token.Line, stmt.Token.Column)
+		return &UnknownType{}
+	}
+
+	exprType := tc.CheckExpression(stmt.ReturnValue)
+
+	if !tc.currentReturn.Equals(exprType) {
+		tc.addError(
+			fmt.Sprintf("return type mismatch: expected %s, got %s", tc.currentReturn.String(), exprType.String()),
+			stmt.Token.Line,
+			stmt.Token.Column,
+		)
+	}
+
+	return &VoidType{}
+}
+
+func (tc *TypeChecker) CheckExpressionStatement(stmt *ast.ExpressionStatement) Type {
+	if stmt.Expression == nil {
+		tc.addError("empty expression statement", stmt.Token.Line, stmt.Token.Column)
+		return &UnknownType{}
+	}
+
+	_ = tc.CheckExpression(stmt.Expression)
+	return &VoidType{}
+}
+
 func (tc *TypeChecker) CheckExpression(expr ast.Expression) Type {
 	switch e := expr.(type) {
 	case *ast.NumberLiteral:
@@ -209,7 +247,7 @@ func (tc *TypeChecker) CheckExpression(expr ast.Expression) Type {
 		return tc.CheckPrefixExpression(e)
 	default:
 		tc.addError(fmt.Sprintf("unknown expression type: %T", expr), 0, 0)
-		return &VoidType{}
+		return &UnknownType{}
 	}
 }
 
@@ -217,7 +255,7 @@ func (tc *TypeChecker) CheckIdentifier(ident *ast.Identifier) Type {
 	symbol, exists := tc.env.Get(ident.Value)
 	if !exists {
 		tc.addError(fmt.Sprintf("undefined variable: %s", ident.Value), ident.Token.Line, ident.Token.Column)
-		return &VoidType{}
+		return &UnknownType{}
 	}
 	return symbol.Type
 }
@@ -225,6 +263,14 @@ func (tc *TypeChecker) CheckIdentifier(ident *ast.Identifier) Type {
 func (tc *TypeChecker) CheckInfixExpression(expr *ast.InfixExpression) Type {
 	leftType := tc.CheckExpression(expr.Left)
 	rightType := tc.CheckExpression(expr.Right)
+
+	// If either side is UnknownType, propagate UnknownType instead of adding errors
+	if _, ok := leftType.(*UnknownType); ok {
+		return &UnknownType{}
+	}
+	if _, ok := rightType.(*UnknownType); ok {
+		return &UnknownType{}
+	}
 
 	switch expr.Operator {
 	case "+", "-", "*", "/":
@@ -256,12 +302,17 @@ func (tc *TypeChecker) CheckInfixExpression(expr *ast.InfixExpression) Type {
 
 	default:
 		tc.addError(fmt.Sprintf("unknown infix operator: %s", expr.Operator), expr.Token.Line, expr.Token.Column)
-		return &VoidType{}
+		return &UnknownType{}
 	}
 }
 
 func (tc *TypeChecker) CheckPrefixExpression(expr *ast.PrefixExpression) Type {
 	operandType := tc.CheckExpression(expr.Right)
+
+	// Propagate up instead of adding more errors.
+	if _, ok := operandType.(*UnknownType); ok {
+		return &UnknownType{}
+	}
 
 	switch expr.Operator {
 	case "-":
@@ -278,6 +329,6 @@ func (tc *TypeChecker) CheckPrefixExpression(expr *ast.PrefixExpression) Type {
 
 	default:
 		tc.addError(fmt.Sprintf("unknown prefix operator: %s", expr.Operator), expr.Token.Line, expr.Token.Column)
-		return &VoidType{}
+		return &UnknownType{}
 	}
 }

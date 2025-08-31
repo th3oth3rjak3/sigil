@@ -56,7 +56,7 @@ func (l *Lexer) NextToken() Token {
 			ch := l.ch
 			l.readChar()
 			tok = Token{
-				Type:    EQEQ,
+				Type:    EQUAL,
 				Literal: string(ch) + string(l.ch),
 				Line:    tokenLine,
 				Column:  tokenColumn,
@@ -86,7 +86,7 @@ func (l *Lexer) NextToken() Token {
 			ch := l.ch
 			l.readChar()
 			tok = Token{
-				Type:    NOTEQ,
+				Type:    NOT_EQUAL,
 				Literal: string(ch) + string(l.ch),
 				Line:    tokenLine,
 				Column:  tokenColumn,
@@ -99,26 +99,26 @@ func (l *Lexer) NextToken() Token {
 			ch := l.ch
 			l.readChar()
 			tok = Token{
-				Type:    LTE,
+				Type:    LESS_THAN_OR_EQUAL,
 				Literal: string(ch) + string(l.ch),
 				Line:    tokenLine,
 				Column:  tokenColumn,
 			}
 		} else {
-			tok = l.newTokenAt(LT, string(l.ch), tokenLine, tokenColumn)
+			tok = l.newTokenAt(LESS_THAN, string(l.ch), tokenLine, tokenColumn)
 		}
 	case '>':
 		if l.peekChar() == '=' {
 			ch := l.ch
 			l.readChar()
 			tok = Token{
-				Type:    GTE,
+				Type:    GREATER_THAN_OR_EQUAL,
 				Literal: string(ch) + string(l.ch),
 				Line:    tokenLine,
 				Column:  tokenColumn,
 			}
 		} else {
-			tok = l.newTokenAt(GT, string(l.ch), tokenLine, tokenColumn)
+			tok = l.newTokenAt(GREATER_THAN, string(l.ch), tokenLine, tokenColumn)
 		}
 	case ';':
 		tok = l.newTokenAt(SEMICOLON, string(l.ch), tokenLine, tokenColumn)
@@ -127,13 +127,13 @@ func (l *Lexer) NextToken() Token {
 	case ':':
 		tok = l.newTokenAt(COLON, string(l.ch), tokenLine, tokenColumn)
 	case '(':
-		tok = l.newTokenAt(LPAREN, string(l.ch), tokenLine, tokenColumn)
+		tok = l.newTokenAt(LEFT_PAREN, string(l.ch), tokenLine, tokenColumn)
 	case ')':
-		tok = l.newTokenAt(RPAREN, string(l.ch), tokenLine, tokenColumn)
+		tok = l.newTokenAt(RIGHT_PAREN, string(l.ch), tokenLine, tokenColumn)
 	case '{':
-		tok = l.newTokenAt(LBRACE, string(l.ch), tokenLine, tokenColumn)
+		tok = l.newTokenAt(LEFT_BRACE, string(l.ch), tokenLine, tokenColumn)
 	case '}':
-		tok = l.newTokenAt(RBRACE, string(l.ch), tokenLine, tokenColumn)
+		tok = l.newTokenAt(RIGHT_BRACE, string(l.ch), tokenLine, tokenColumn)
 	case '"':
 		tok.Type = STRING
 		tok.Literal = l.readString()
