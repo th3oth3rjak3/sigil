@@ -139,3 +139,35 @@ func TestIdentifierExpression(t *testing.T) {
 		t.Errorf("ident.TokenValue() != %s, got %s", "foobar", ident.Value)
 	}
 }
+
+func TestNumberLiteralExpression(t *testing.T) {
+	input := `5;`
+
+	l := lexer.New(input)
+	p := New(l)
+
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("program doesn't have enough statements. Expected %d, got %d", 1, len(program.Statements))
+	}
+
+	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("stmt not *ast.ExpressionStatement, got=%T", program.Statements[0])
+	}
+
+	literal, ok := stmt.Expression.(*ast.NumberLiteral)
+	if !ok {
+		t.Fatalf("literal not *ast.NumberLiteral, got=%T", stmt.Expression)
+	}
+
+	if literal.Value != 5 {
+		t.Errorf("literal.Value != 5, got=%f", literal.Value)
+	}
+
+	if literal.TokenLiteral() != "5" {
+		t.Errorf("literal.TokenLiteral != %s, got=%s", "5", literal.TokenLiteral())
+	}
+}

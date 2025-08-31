@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sigil/internal/ast"
 	"sigil/internal/backends"
-	"strconv"
 )
 
 // Value represents a runtime value in the interpreter
@@ -127,11 +126,7 @@ func (i *Interpreter) evaluateExpression(expr ast.Expression) (Value, error) {
 }
 
 func (i *Interpreter) evaluateNumberLiteral(literal *ast.NumberLiteral) (Value, error) {
-	value, err := strconv.ParseFloat(literal.Value, 64)
-	if err != nil {
-		return nil, fmt.Errorf("invalid number literal: %s", literal.Value)
-	}
-	return &NumberValue{Value: value}, nil
+	return &NumberValue{Value: literal.Value}, nil
 }
 
 func (i *Interpreter) evaluateStringLiteral(literal *ast.StringLiteral) (Value, error) {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"sigil/internal/lexer"
+	"strconv"
 	"strings"
 )
 
@@ -119,19 +120,21 @@ func (i *Identifier) TreeString(prefix string, isLast bool) string {
 // NumberLiteral represents numeric values
 type NumberLiteral struct {
 	Token lexer.Token
-	Value string
+	Value float64
 }
 
-func (nl *NumberLiteral) expr()                {}
-func (nl *NumberLiteral) String() string       { return nl.Value }
-func (nl *NumberLiteral) TokenLiteral() string { return nl.Value }
+func (nl *NumberLiteral) expr() {}
+func (nl *NumberLiteral) String() string {
+	return strconv.FormatFloat(nl.Value, 'f', -1, 64)
+}
+func (nl *NumberLiteral) TokenLiteral() string { return nl.String() }
 
 func (nl *NumberLiteral) TreeString(prefix string, isLast bool) string {
 	connector := "├── "
 	if isLast {
 		connector = "└── "
 	}
-	return prefix + connector + "NumberLiteral: " + nl.Value + "\n"
+	return prefix + connector + "NumberLiteral: " + nl.TokenLiteral() + "\n"
 }
 
 type StringLiteral struct {

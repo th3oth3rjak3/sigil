@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sigil/internal/ast"
 	"sigil/internal/lexer"
+	"strconv"
 )
 
 // Precedences
@@ -185,7 +186,12 @@ func (p *Parser) parseIdentifier() ast.Expression {
 }
 
 func (p *Parser) parseNumberLiteral() ast.Expression {
-	return &ast.NumberLiteral{Token: p.curToken, Value: p.curToken.Literal}
+	value, err := strconv.ParseFloat(p.curToken.Literal, 64)
+	if err != nil {
+		msg := fmt.Sprintf("Error parsing Number: %s", err)
+		p.errors = append(p.errors, msg)
+	}
+	return &ast.NumberLiteral{Token: p.curToken, Value: value}
 }
 
 func (p *Parser) parseStringLiteral() ast.Expression {
