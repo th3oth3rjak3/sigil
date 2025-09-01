@@ -140,6 +140,8 @@ func (i *Interpreter) evaluateExpression(expr ast.Expression) (Value, error) {
 		return i.evaluatePrefixExpression(e)
 	case *ast.IfExpression:
 		return i.evaluateIfExpression(e)
+	case *ast.FunctionLiteral:
+		return i.evaluateFunctionLiteral(e)
 	default:
 		return nil, fmt.Errorf("unknown expression type: %T", expr)
 	}
@@ -206,6 +208,14 @@ func (i *Interpreter) evaluateBlockStatement(block *ast.BlockStatement) (Value, 
 		}
 	}
 	return result, nil
+}
+
+func (i *Interpreter) evaluateFunctionLiteral(fun *ast.FunctionLiteral) (Value, error) {
+	return &FunctionValue{
+		Parameters: fun.Parameters,
+		Body:       fun.Body,
+		Env:        i.env, // capture current environment for closures
+	}, nil
 }
 
 // --- Operators ---
@@ -314,3 +324,15 @@ func (i *Interpreter) valuesEqual(left, right Value) bool {
 		return false
 	}
 }
+
+type FunctionValue struct {
+	Parameters []*ast.FunctionParameter
+	Body       *ast.BlockStatement
+	Env        *Environment
+}
+
+func (fv *FunctionValue) String() string {
+	return fmt.Sprintf("<fun %d params>", len(fv.Parameters))
+}
+
+func (fv *FunctionValue) Type() string { return "function" }

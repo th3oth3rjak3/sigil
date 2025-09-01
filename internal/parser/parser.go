@@ -68,6 +68,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(lexer.TRUE, p.parseBooleanLiteral)
 	p.registerPrefix(lexer.FALSE, p.parseBooleanLiteral)
 	p.registerPrefix(lexer.IF, p.parseIfExpression)
+	p.registerPrefix(lexer.FUNCTION, p.parseFunctionLiteral)
 
 	p.infixParseFns = make(map[lexer.TokenType]infixParseFn)
 	p.registerInfix(lexer.PLUS, p.parseInfixExpression)
@@ -285,6 +286,69 @@ func (p *Parser) parseBlockStatement() *ast.BlockStatement {
 	}
 
 	return block
+}
+
+func (p *Parser) parseFunctionLiteral() ast.Expression {
+	lit := &ast.FunctionLiteral{Token: p.curToken}
+
+	if !p.expectPeek(lexer.LEFT_PAREN) {
+		return nil
+	}
+
+	lit.Parameters = p.parseFunctionParameters()
+
+	if !p.expectPeek(lexer.COLON) {
+		return nil
+	}
+
+	if !p.expectPeek(lexer.IDENT) {
+		return nil
+	}
+
+	lit.ReturnType = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	if !p.expectPeek(lexer.LEFT_BRACE) {
+		return nil
+	}
+
+	lit.Body = p.parseBlockStatement()
+
+	return lit
+}
+
+func (p *Parser) parseFunctionParameters() []*ast.FunctionParameter {
+	parameters := []*ast.FunctionParameter{}
+
+	// Shortcut for empty parameter list
+	if p.peekTokenIs(lexer.RIGHT_PAREN) {
+		p.nextToken() // consume ')'
+		return parameters
+	}
+
+	for {
+		p.nextToken() // move to parameter name
+		name := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+		if !p.expectPeek(lexer.COLON) {
+			return nil
+		}
+
+		p.nextToken() // move to type
+		typeHint := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+		parameters = append(parameters, &ast.FunctionParameter{Name: name, TypeHint: typeHint})
+
+		if !p.peekTokenIs(lexer.COMMA) {
+			break
+		}
+		p.nextToken() // consume comma
+	}
+
+	if !p.expectPeek(lexer.RIGHT_PAREN) {
+		return nil
+	}
+
+	return parameters
 }
 
 // Infix functions

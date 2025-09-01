@@ -89,7 +89,9 @@ func (ls *LetStatement) TreeString(prefix string, isLast bool) string {
 	if ls.TypeHint != nil {
 		out.WriteString(childPrefix + "├── TypeHint: " + ls.TypeHint.String() + "\n")
 	}
-	out.WriteString(childPrefix + "└── Value: " + ls.Value.String() + "\n")
+	// Value (nested tree)
+	out.WriteString(childPrefix + "└── Value:\n")
+	out.WriteString(ls.Value.TreeString(childPrefix+"    ", true))
 
 	return out.String()
 }
@@ -411,6 +413,130 @@ func (ie *IfExpression) TreeString(prefix string, isLast bool) string {
 	if ie.Alternative != nil {
 		out.WriteString(childPrefix + "└── Alternative:\n")
 		out.WriteString(ie.Alternative.TreeString(childPrefix+"    ", true))
+	}
+
+	return out.String()
+}
+
+type FunctionParameter struct {
+	Name     *Identifier
+	TypeHint *Identifier // may be nil if no type hint provided
+}
+
+func (fp *FunctionParameter) String() string {
+	if fp.TypeHint != nil {
+		return fp.Name.String() + ": " + fp.TypeHint.String()
+	}
+	return fp.Name.String()
+}
+
+func (fp *FunctionParameter) TreeString(prefix string, isLast bool) string {
+	connector := "├── "
+	if isLast {
+		connector = "└── "
+	}
+
+	var out strings.Builder
+	out.WriteString(prefix + connector + "FunctionParameter\n")
+
+	childPrefix := prefix
+	if isLast {
+		childPrefix += "    "
+	} else {
+		childPrefix += "│   "
+	}
+
+	// Name
+	out.WriteString(childPrefix + "├── Name: " + fp.Name.String() + "\n")
+
+	// TypeHint
+	if fp.TypeHint != nil {
+		out.WriteString(childPrefix + "└── TypeHint: " + fp.TypeHint.String() + "\n")
+	} else {
+		out.WriteString(childPrefix + "└── TypeHint: (none)\n")
+	}
+
+	return out.String()
+}
+
+type FunctionLiteral struct {
+	Token      lexer.Token          // The 'fn' token
+	Parameters []*FunctionParameter // a list of parameters, may be empty
+	Body       *BlockStatement
+	ReturnType *Identifier // optional return type
+}
+
+func (fl *FunctionLiteral) expr() {}
+
+func (fl *FunctionLiteral) String() string {
+	var out bytes.Buffer
+
+	// Function keyword
+	out.WriteString(fl.TokenLiteral())
+	out.WriteString("(")
+
+	// Parameters
+	params := []string{}
+	for _, p := range fl.Parameters {
+		params = append(params, p.String())
+	}
+	out.WriteString(strings.Join(params, ", "))
+	out.WriteString(")")
+
+	// Return type (if any)
+	if fl.ReturnType != nil {
+		out.WriteString(": ")
+		out.WriteString(fl.ReturnType.String())
+	}
+
+	// Body
+	out.WriteString(" ")
+	out.WriteString(fl.Body.String())
+
+	return out.String()
+}
+
+func (fl *FunctionLiteral) TokenLiteral() string { return fl.Token.Literal }
+
+func (fl *FunctionLiteral) TreeString(prefix string, isLast bool) string {
+	var out strings.Builder
+
+	connector := "├── "
+	if isLast {
+		connector = "└── "
+	}
+
+	out.WriteString(prefix + connector + "FunctionLiteral\n")
+
+	// Compute prefix for children
+	childPrefix := prefix
+	if isLast {
+		childPrefix += "    "
+	} else {
+		childPrefix += "│   "
+	}
+
+	// Parameters
+	for i, param := range fl.Parameters {
+		paramIsLast := i == len(fl.Parameters)-1 && fl.ReturnType == nil && fl.Body == nil
+		out.WriteString(param.TreeString(childPrefix, paramIsLast))
+	}
+
+	// Return type
+	if fl.ReturnType != nil {
+		retIsLast := fl.Body == nil
+		retConnector := "├── "
+		if retIsLast {
+			retConnector = "└── "
+		}
+		out.WriteString(childPrefix + retConnector + "ReturnType: " + fl.ReturnType.String() + "\n")
+	}
+
+	// Body
+	if fl.Body != nil {
+		bodyConnector := "└── "
+		out.WriteString(childPrefix + bodyConnector + "Body:\n")
+		out.WriteString(fl.Body.TreeString(childPrefix+"    ", true))
 	}
 
 	return out.String()

@@ -3,6 +3,7 @@ package typechecker
 import (
 	"fmt"
 	"sigil/internal/ast"
+	"strings"
 )
 
 // Type represents a type in the language
@@ -46,6 +47,36 @@ func (ut *UnknownType) String() string { return "Unknown" }
 func (ut *UnknownType) Equals(other Type) bool {
 	_, ok := other.(*UnknownType)
 	return ok
+}
+
+// FunctionType represents a function with parameters and a return type
+type FunctionType struct {
+	ParamTypes []Type
+	ReturnType Type
+}
+
+func (ft *FunctionType) String() string {
+	params := []string{}
+	for _, p := range ft.ParamTypes {
+		params = append(params, p.String())
+	}
+	return fmt.Sprintf("(%s) -> %s", strings.Join(params, ", "), ft.ReturnType.String())
+}
+
+func (ft *FunctionType) Equals(other Type) bool {
+	o, ok := other.(*FunctionType)
+	if !ok {
+		return false
+	}
+	if len(ft.ParamTypes) != len(o.ParamTypes) {
+		return false
+	}
+	for i := range ft.ParamTypes {
+		if !ft.ParamTypes[i].Equals(o.ParamTypes[i]) {
+			return false
+		}
+	}
+	return ft.ReturnType.Equals(o.ReturnType)
 }
 
 // Type error with position information
@@ -128,6 +159,29 @@ func (tc *TypeChecker) HasErrors() bool {
 	return len(tc.errors) > 0
 }
 
+func (tc *TypeChecker) typeFromExpression(expr ast.Expression) Type {
+	switch e := expr.(type) {
+	case *ast.NumberLiteral:
+		return &NumberType{}
+	case *ast.StringLiteral:
+		return &StringType{}
+	case *ast.BooleanLiteral:
+		return &BoolType{}
+	case *ast.FunctionLiteral:
+		paramTypes := []Type{}
+		for _, param := range e.Parameters {
+			paramTypes = append(paramTypes, tc.parseTypeFromIdentifier(param.TypeHint))
+		}
+		retType := tc.parseTypeFromIdentifier(e.ReturnType)
+		return &FunctionType{
+			ParamTypes: paramTypes,
+			ReturnType: retType,
+		}
+	default:
+		return &UnknownType{}
+	}
+}
+
 // Helper function to parse type annotations from identifiers
 func (tc *TypeChecker) parseTypeFromIdentifier(typeIdent *ast.Identifier) Type {
 	if typeIdent == nil {
@@ -143,6 +197,23 @@ func (tc *TypeChecker) parseTypeFromIdentifier(typeIdent *ast.Identifier) Type {
 		return &BoolType{}
 	default:
 		tc.addError(fmt.Sprintf("unknown type: %s", typeIdent.Value), typeIdent.Token.Line, typeIdent.Token.Column)
+		return &UnknownType{}
+	}
+}
+
+func GetTypeFromIdentifier(typeIdent *ast.Identifier) Type {
+	if typeIdent == nil {
+		return &UnknownType{}
+	}
+
+	switch typeIdent.Value {
+	case "Number":
+		return &NumberType{}
+	case "String":
+		return &StringType{}
+	case "Bool":
+		return &BoolType{}
+	default:
 		return &UnknownType{}
 	}
 }
@@ -170,34 +241,31 @@ func (tc *TypeChecker) CheckStatement(stmt ast.Statement) Type {
 }
 
 func (tc *TypeChecker) CheckLetStatement(stmt *ast.LetStatement) Type {
-	// Type hint is mandatory for now
-	if stmt.TypeHint == nil {
+	var declaredType Type
+	if stmt.TypeHint != nil {
+		declaredType = tc.parseTypeFromIdentifier(stmt.TypeHint)
+	} else if stmt.Value != nil {
+		declaredType = tc.typeFromExpression(stmt.Value)
+	} else {
 		tc.addError("type annotation is required for variable declarations", stmt.Token.Line, stmt.Token.Column)
 		return &UnknownType{}
 	}
 
-	// Parse the declared type
-	declaredType := tc.parseTypeFromIdentifier(stmt.TypeHint)
-
-	// Check the value expression
 	valueType := tc.CheckExpression(stmt.Value)
 
-	// Verify the value type matches the declared type
-	if valueType != nil && !declaredType.Equals(valueType) {
+	if !declaredType.Equals(valueType) {
 		tc.addError(
 			fmt.Sprintf("type mismatch: declared %s but got %s", declaredType.String(), valueType.String()),
 			stmt.Token.Line, stmt.Token.Column,
 		)
 	}
 
-	// Add the variable to the environment
-	symbol := &Symbol{
+	tc.env.Set(stmt.Name.Value, &Symbol{
 		Name:   stmt.Name.Value,
 		Type:   declaredType,
 		Line:   stmt.Name.Token.Line,
 		Column: stmt.Name.Token.Column,
-	}
-	tc.env.Set(stmt.Name.Value, symbol)
+	})
 
 	return &VoidType{}
 }
@@ -218,8 +286,9 @@ func (tc *TypeChecker) CheckReturnStatement(stmt *ast.ReturnStatement) Type {
 		)
 	}
 
-	return &VoidType{}
+	return exprType // <- Return the type of the returned expression
 }
+
 func (tc *TypeChecker) CheckExpressionStatement(stmt *ast.ExpressionStatement) Type {
 	if stmt.Expression == nil {
 		tc.addError("empty expression statement", stmt.Token.Line, stmt.Token.Column)
@@ -251,6 +320,8 @@ func (tc *TypeChecker) CheckExpression(expr ast.Expression) Type {
 		return tc.CheckPrefixExpression(e)
 	case *ast.IfExpression:
 		return tc.CheckIfExpression(e)
+	case *ast.FunctionLiteral:
+		return tc.CheckFunctionLiteral(e)
 	default:
 		tc.addError(fmt.Sprintf("unknown expression type: %T", expr), 0, 0)
 		return &UnknownType{}
@@ -378,4 +449,55 @@ func (tc *TypeChecker) CheckBlockStatement(block *ast.BlockStatement) Type {
 		lastType = tc.CheckStatement(stmt)
 	}
 	return lastType
+}
+
+func (tc *TypeChecker) CheckFunctionLiteral(fn *ast.FunctionLiteral) Type {
+	// Parse parameter types
+	paramTypes := []Type{}
+	for _, param := range fn.Parameters {
+		paramTypes = append(paramTypes, tc.parseTypeFromIdentifier(param.TypeHint))
+	}
+
+	// Expected return type
+	var returnType Type
+	returnType = &UnknownType{}
+	if fn.ReturnType != nil {
+		returnType = tc.parseTypeFromIdentifier(fn.ReturnType)
+	}
+
+	// New scope for function body
+	oldEnv := tc.env
+	tc.env = NewEnclosedEnvironment(oldEnv)
+	tc.currentReturn = returnType
+
+	// Add parameters to environment
+	for i, param := range fn.Parameters {
+		tc.env.Set(param.Name.Value, &Symbol{
+			Name:   param.Name.Value,
+			Type:   paramTypes[i],
+			Line:   param.Name.Token.Line,
+			Column: param.Name.Token.Column,
+		})
+	}
+
+	// Check body
+	bodyType := tc.CheckBlockStatement(fn.Body)
+
+	// Restore old environment
+	tc.env = oldEnv
+	tc.currentReturn = nil
+
+	// Ensure body type matches declared return type
+	if !returnType.Equals(bodyType) {
+		tc.addError(fmt.Sprintf(
+			"function body type mismatch: expected %s, got %s",
+			returnType.String(), bodyType.String(),
+		), fn.Token.Line, fn.Token.Column)
+	}
+
+	// Return a FunctionType (you’ll need to define it)
+	return &FunctionType{
+		ParamTypes: paramTypes,
+		ReturnType: returnType,
+	}
 }

@@ -1,5 +1,3 @@
 let add = fun(x: Number, y: Number): Number {
     return x + y;
 }
-
-let result: Number = add(1, 2);
