@@ -353,6 +353,8 @@ func (tc *TypeChecker) CheckExpression(expr ast.Expression) Type {
 		return tc.CheckFunctionLiteral(e)
 	case *ast.CallExpression:
 		return tc.CheckCallExpression(e)
+	case *ast.AssignmentExpression:
+		return tc.CheckAssignmentExpression(e)
 	default:
 		tc.addError(fmt.Sprintf("unknown expression type: %T", expr), 0, 0)
 		return &UnknownType{}
@@ -489,6 +491,22 @@ func (tc *TypeChecker) CheckIfExpression(expr *ast.IfExpression) Type {
 	return &VoidType{} // If no else branch, type is Void
 }
 
+func (tc *TypeChecker) CheckAssignmentExpression(expr *ast.AssignmentExpression) Type {
+	sym, ok := tc.env.Get(expr.Name.Value)
+	if !ok {
+		tc.addError(fmt.Sprintf("variable with name %s not defined", expr.Name.Value), expr.Token.Line, expr.Token.Column)
+		return &UnknownType{}
+	}
+	newType := tc.CheckExpression(expr.Value)
+
+	if !sym.Type.Equals(newType) {
+		tc.addError(fmt.Sprintf("assignment type mismatch, expected %s, got %s", sym.Type, newType), expr.Token.Line, expr.Token.Line)
+		return &UnknownType{}
+	}
+
+	return sym.Type
+}
+
 func (tc *TypeChecker) CheckBlockStatement(block *ast.BlockStatement) Type {
 	var lastType Type = &VoidType{}
 	for _, stmt := range block.Statements {
@@ -511,8 +529,23 @@ func (tc *TypeChecker) CheckFunctionLiteral(fn *ast.FunctionLiteral) Type {
 		returnType = tc.parseTypeFromIdentifier(fn.ReturnType)
 	}
 
+	// --- Predeclare function in current environment ---
+	fnType := &FunctionType{
+		ParamTypes: paramTypes,
+		ReturnType: returnType,
+	}
+
+	// If the function has a name, insert it in the environment now
+	tc.env.Set(fn.Name, &Symbol{
+		Name:   fn.Name,
+		Type:   fnType,
+		Line:   fn.Token.Line,
+		Column: fn.Token.Column,
+	})
+
 	// New scope for function body
 	oldEnv := tc.env
+	oldReturn := tc.currentReturn
 	tc.env = NewEnclosedEnvironment(oldEnv)
 	tc.currentReturn = returnType
 
@@ -531,7 +564,7 @@ func (tc *TypeChecker) CheckFunctionLiteral(fn *ast.FunctionLiteral) Type {
 
 	// Restore old environment
 	tc.env = oldEnv
-	tc.currentReturn = nil
+	tc.currentReturn = oldReturn
 
 	// Ensure body type matches declared return type
 	if !returnType.Equals(bodyType) {

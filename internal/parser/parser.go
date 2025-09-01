@@ -208,7 +208,20 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 
 // Prefix functions
 func (p *Parser) parseIdentifier() ast.Expression {
-	return &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+	ident := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+	if p.peekTokenIs(lexer.ASSIGN) {
+		assignToken := p.peekToken
+		p.nextToken() // consume ASSIGN
+		p.nextToken() // move to expression
+		value := p.parseExpression(LOWEST)
+		return &ast.AssignmentExpression{
+			Token: assignToken,
+			Name:  ident,
+			Value: value,
+		}
+	}
+
+	return ident
 }
 
 func (p *Parser) parseNumberLiteral() ast.Expression {

@@ -1,0 +1,9 @@
+let checkPositive = fun(n: Number): Number {
+    if (n < 0) {
+        return 0;
+    }
+    return n;
+}
+
+println(string(checkPositive(-5))); 
+println(string(checkPositive(7)));  

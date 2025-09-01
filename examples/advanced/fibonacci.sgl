@@ -1,0 +1,9 @@
+let fib = fun(n: Number): Number {
+    if (n < 2) {
+        return n;
+    }
+
+    fib(n - 1) + fib(n - 2)
+}
+
+println(string(fib(10)));

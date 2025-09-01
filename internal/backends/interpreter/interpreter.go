@@ -191,6 +191,8 @@ func (i *Interpreter) evaluateExpression(expr ast.Expression) (Value, error) {
 		return i.evaluateFunctionLiteral(e)
 	case *ast.CallExpression:
 		return i.applyCallExpression(e)
+	case *ast.AssignmentExpression:
+		return i.evaluateAssignmentExpression(e)
 	default:
 		return nil, fmt.Errorf("unknown expression type: %T", expr)
 	}
@@ -218,6 +220,8 @@ func (i *Interpreter) evaluateInfixExpression(expr *ast.InfixExpression) (Value,
 	if err != nil {
 		return nil, err
 	}
+	left = i.unwrapReturnValue(left)
+	right = i.unwrapReturnValue(right)
 	return i.applyInfixOperator(expr.Operator, left, right)
 }
 
@@ -258,13 +262,20 @@ func (i *Interpreter) evaluateBlockStatement(block *ast.BlockStatement) (Value, 
 		}
 		if retVal, ok := val.(*ReturnValue); ok {
 			// propagate the return early
-			return retVal.Value, nil
+			return retVal, nil
 		}
 		if val != nil {
 			result = val
 		}
 	}
 	return result, nil
+}
+
+func (i *Interpreter) unwrapReturnValue(val Value) Value {
+	if ret, ok := val.(*ReturnValue); ok {
+		return ret.Value
+	}
+	return val
 }
 
 func (i *Interpreter) evaluateFunctionLiteral(fun *ast.FunctionLiteral) (Value, error) {
@@ -274,6 +285,15 @@ func (i *Interpreter) evaluateFunctionLiteral(fun *ast.FunctionLiteral) (Value, 
 		Body:       fun.Body,
 		Env:        i.env, // capture current environment for closures
 	}, nil
+}
+
+func (i *Interpreter) evaluateAssignmentExpression(expr *ast.AssignmentExpression) (Value, error) {
+	exp, err := i.evaluateExpression(expr.Value)
+	if err != nil {
+		return nil, err
+	}
+	i.env.Set(expr.Name.Value, exp)
+	return exp, nil
 }
 
 func (i *Interpreter) applyCallExpression(ce *ast.CallExpression) (Value, error) {
@@ -337,6 +357,10 @@ func (i *Interpreter) applyCallExpression(ce *ast.CallExpression) (Value, error)
 
 	if err != nil {
 		return nil, err
+	}
+
+	if ret, ok := result.(*ReturnValue); ok {
+		return ret.Value, nil
 	}
 
 	return result, nil

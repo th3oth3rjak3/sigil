@@ -597,3 +597,55 @@ func (ce *CallExpression) TreeString(prefix string, isLast bool) string {
 
 	return out.String()
 }
+
+type AssignmentExpression struct {
+	Token lexer.Token // the '=' token
+	Name  *Identifier
+	Value Expression
+}
+
+func (ae *AssignmentExpression) expr()                {}
+func (ae *AssignmentExpression) TokenLiteral() string { return ae.Token.Literal }
+func (ae *AssignmentExpression) String() string {
+	var out bytes.Buffer
+	out.WriteString(ae.Name.Value)
+	out.WriteString(" = ")
+	out.WriteString(ae.Value.TokenLiteral())
+	out.WriteString(";")
+
+	return out.String()
+}
+func (ae *AssignmentExpression) TreeString(prefix string, isLast bool) string {
+	var out bytes.Buffer
+
+	connector := "├── "
+	if isLast {
+		connector = "└── "
+	}
+
+	// Root line for this assignment
+	out.WriteString(prefix)
+	out.WriteString(connector)
+	out.WriteString("AssignmentExpression\n")
+
+	// New prefix for children
+	childPrefix := prefix
+	if isLast {
+		childPrefix += "    "
+	} else {
+		childPrefix += "│   "
+	}
+
+	// Name
+	out.WriteString(childPrefix)
+	out.WriteString("├── Name: ")
+	out.WriteString(ae.Name.Value)
+	out.WriteString("\n")
+
+	// Value
+	out.WriteString(childPrefix)
+	out.WriteString("└── Value:\n")
+	out.WriteString(ae.Value.TreeString(childPrefix+"    ", true))
+
+	return out.String()
+}
