@@ -220,15 +220,19 @@ func (tc *TypeChecker) CheckReturnStatement(stmt *ast.ReturnStatement) Type {
 
 	return &VoidType{}
 }
-
 func (tc *TypeChecker) CheckExpressionStatement(stmt *ast.ExpressionStatement) Type {
 	if stmt.Expression == nil {
 		tc.addError("empty expression statement", stmt.Token.Line, stmt.Token.Column)
 		return &UnknownType{}
 	}
 
-	_ = tc.CheckExpression(stmt.Expression)
-	return &VoidType{}
+	exprType := tc.CheckExpression(stmt.Expression)
+
+	if stmt.HasSemicolon {
+		return &VoidType{} // semicolon → discard value
+	}
+
+	return exprType // no semicolon → use expression type
 }
 
 func (tc *TypeChecker) CheckExpression(expr ast.Expression) Type {
@@ -245,6 +249,8 @@ func (tc *TypeChecker) CheckExpression(expr ast.Expression) Type {
 		return tc.CheckInfixExpression(e)
 	case *ast.PrefixExpression:
 		return tc.CheckPrefixExpression(e)
+	case *ast.IfExpression:
+		return tc.CheckIfExpression(e)
 	default:
 		tc.addError(fmt.Sprintf("unknown expression type: %T", expr), 0, 0)
 		return &UnknownType{}
@@ -331,4 +337,45 @@ func (tc *TypeChecker) CheckPrefixExpression(expr *ast.PrefixExpression) Type {
 		tc.addError(fmt.Sprintf("unknown prefix operator: %s", expr.Operator), expr.Token.Line, expr.Token.Column)
 		return &UnknownType{}
 	}
+}
+
+func (tc *TypeChecker) CheckIfExpression(expr *ast.IfExpression) Type {
+	condType := tc.CheckExpression(expr.Condition)
+
+	// Condition must be Bool
+	if !condType.Equals(&BoolType{}) {
+		tc.addError(fmt.Sprintf("if condition must be Bool, got %s", condType.String()), expr.Token.Line, expr.Token.Column)
+	}
+
+	// Check consequence block
+	consequenceType := tc.CheckBlockStatement(expr.Consequence)
+
+	// Check alternative block if present
+	var alternativeType Type = &VoidType{}
+	if expr.Alternative != nil {
+		alternativeType = tc.CheckBlockStatement(expr.Alternative)
+	}
+
+	// Both branches must have the same type if alternative exists
+	if expr.Alternative != nil && !consequenceType.Equals(alternativeType) {
+		tc.addError(fmt.Sprintf(
+			"if branches must return same type, got %s and %s",
+			consequenceType.String(),
+			alternativeType.String(),
+		), expr.Token.Line, expr.Token.Column)
+		return &UnknownType{}
+	}
+
+	if expr.Alternative != nil {
+		return consequenceType
+	}
+	return &VoidType{} // If no else branch, type is Void
+}
+
+func (tc *TypeChecker) CheckBlockStatement(block *ast.BlockStatement) Type {
+	var lastType Type = &VoidType{}
+	for _, stmt := range block.Statements {
+		lastType = tc.CheckStatement(stmt)
+	}
+	return lastType
 }

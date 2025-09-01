@@ -20,10 +20,16 @@ const (
 )
 
 var precedences = map[lexer.TokenType]int{
-	lexer.PLUS:  SUM,
-	lexer.MINUS: SUM,
-	lexer.STAR:  PRODUCT,
-	lexer.SLASH: PRODUCT,
+	lexer.EQUAL:                 EQUALS,
+	lexer.NOT_EQUAL:             EQUALS,
+	lexer.LESS_THAN:             LESS_GREATER,
+	lexer.LESS_THAN_OR_EQUAL:    LESS_GREATER,
+	lexer.GREATER_THAN:          LESS_GREATER,
+	lexer.GREATER_THAN_OR_EQUAL: LESS_GREATER,
+	lexer.PLUS:                  SUM,
+	lexer.MINUS:                 SUM,
+	lexer.STAR:                  PRODUCT,
+	lexer.SLASH:                 PRODUCT,
 }
 
 type (
@@ -61,12 +67,19 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(lexer.BANG, p.parsePrefixExpression)
 	p.registerPrefix(lexer.TRUE, p.parseBooleanLiteral)
 	p.registerPrefix(lexer.FALSE, p.parseBooleanLiteral)
+	p.registerPrefix(lexer.IF, p.parseIfExpression)
 
 	p.infixParseFns = make(map[lexer.TokenType]infixParseFn)
 	p.registerInfix(lexer.PLUS, p.parseInfixExpression)
 	p.registerInfix(lexer.MINUS, p.parseInfixExpression)
 	p.registerInfix(lexer.STAR, p.parseInfixExpression)
 	p.registerInfix(lexer.SLASH, p.parseInfixExpression)
+	p.registerInfix(lexer.EQUAL, p.parseInfixExpression)
+	p.registerInfix(lexer.NOT_EQUAL, p.parseInfixExpression)
+	p.registerInfix(lexer.GREATER_THAN, p.parseInfixExpression)
+	p.registerInfix(lexer.LESS_THAN, p.parseInfixExpression)
+	p.registerInfix(lexer.GREATER_THAN_OR_EQUAL, p.parseInfixExpression)
+	p.registerInfix(lexer.LESS_THAN_OR_EQUAL, p.parseInfixExpression)
 
 	return p
 }
@@ -94,7 +107,7 @@ func (p *Parser) parseStatement() ast.Statement {
 	case lexer.LET:
 		return p.parseLetStatement()
 	case lexer.RETURN:
-		return p.parseReturnStatment()
+		return p.parseReturnStatement()
 	default:
 		return p.parseExpressionStatement()
 	}
@@ -132,13 +145,14 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 	return stmt
 }
 
-func (p *Parser) parseReturnStatment() *ast.ReturnStatement {
+func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 	stmt := &ast.ReturnStatement{Token: p.curToken}
-	p.nextToken()
 
-	// TODO: for now skip expression parsing until we get that working
-	// NOTE: this causes a nil pointer panic when printing the parse tree.
-	for !p.curTokenIs(lexer.SEMICOLON) {
+	p.nextToken() // move past 'return'
+
+	stmt.ReturnValue = p.parseExpression(LOWEST)
+
+	if p.peekTokenIs(lexer.SEMICOLON) {
 		p.nextToken()
 	}
 
@@ -152,6 +166,9 @@ func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
 
 	if p.peekTokenIs(lexer.SEMICOLON) {
 		p.nextToken()
+		stmt.HasSemicolon = true
+	} else {
+		stmt.HasSemicolon = false
 	}
 
 	return stmt
@@ -221,6 +238,53 @@ func (p *Parser) parsePrefixExpression() ast.Expression {
 
 func (p *Parser) parseBooleanLiteral() ast.Expression {
 	return &ast.BooleanLiteral{Token: p.curToken, Value: p.curTokenIs(lexer.TRUE)}
+}
+
+func (p *Parser) parseIfExpression() ast.Expression {
+	expression := &ast.IfExpression{Token: p.curToken}
+
+	if !p.expectPeek(lexer.LEFT_PAREN) {
+		return nil
+	}
+
+	p.nextToken()
+	expression.Condition = p.parseExpression(LOWEST)
+
+	if !p.expectPeek(lexer.RIGHT_PAREN) {
+		return nil
+	}
+
+	if !p.expectPeek(lexer.LEFT_BRACE) {
+		return nil
+	}
+
+	expression.Consequence = p.parseBlockStatement()
+
+	if p.peekTokenIs(lexer.ELSE) {
+		p.nextToken()
+
+		if !p.expectPeek(lexer.LEFT_BRACE) {
+			return nil
+		}
+
+		expression.Alternative = p.parseBlockStatement()
+	}
+
+	return expression
+}
+
+func (p *Parser) parseBlockStatement() *ast.BlockStatement {
+	block := &ast.BlockStatement{Token: p.curToken}
+	block.Statements = []ast.Statement{}
+	p.nextToken()
+
+	for !p.curTokenIs(lexer.RIGHT_BRACE) && !p.curTokenIs(lexer.EOF) {
+		stmt := p.parseStatement()
+		block.Statements = append(block.Statements, stmt)
+		p.nextToken()
+	}
+
+	return block
 }
 
 // Infix functions

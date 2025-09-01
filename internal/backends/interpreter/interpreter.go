@@ -80,7 +80,7 @@ func New() backends.CompilerBackend {
 // Execute implements the CompilerBackend interface
 func (i *Interpreter) Execute(program *ast.Program) error {
 	for _, stmt := range program.Statements {
-		err := i.executeStatement(stmt)
+		_, err := i.executeStatement(stmt)
 		if err != nil {
 			return err
 		}
@@ -88,53 +88,61 @@ func (i *Interpreter) Execute(program *ast.Program) error {
 	return nil
 }
 
-func (i *Interpreter) executeStatement(stmt ast.Statement) error {
+// --- Statement Execution ---
+func (i *Interpreter) executeStatement(stmt ast.Statement) (Value, error) {
 	switch s := stmt.(type) {
 	case *ast.LetStatement:
 		return i.executeLetStatement(s)
+	case *ast.ExpressionStatement:
+		return i.executeExpressionStatement(s)
 	default:
-		return fmt.Errorf("unknown statement type: %T", stmt)
+		return nil, fmt.Errorf("unknown statement type: %T", stmt)
 	}
 }
 
-func (i *Interpreter) executeLetStatement(stmt *ast.LetStatement) error {
+func (i *Interpreter) executeLetStatement(stmt *ast.LetStatement) (Value, error) {
 	value, err := i.evaluateExpression(stmt.Value)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	i.env.Set(stmt.Name.Value, value)
-	return nil
+	return nil, nil // assignments don’t produce a value
 }
 
+func (i *Interpreter) executeExpressionStatement(stmt *ast.ExpressionStatement) (Value, error) {
+	val, err := i.evaluateExpression(stmt.Expression)
+	if err != nil {
+		return nil, err
+	}
+
+	// Only discard if semicolon is present
+	if stmt.HasSemicolon {
+		return nil, nil
+	}
+
+	return val, nil
+}
+
+// --- Expression Evaluation ---
 func (i *Interpreter) evaluateExpression(expr ast.Expression) (Value, error) {
 	switch e := expr.(type) {
 	case *ast.NumberLiteral:
-		return i.evaluateNumberLiteral(e)
+		return &NumberValue{Value: e.Value}, nil
 	case *ast.StringLiteral:
-		return i.evaluateStringLiteral(e)
+		return &StringValue{Value: e.String()}, nil
 	case *ast.BooleanLiteral:
-		return i.evaluateBooleanLiteral(e)
+		return &BoolValue{Value: e.Value}, nil
 	case *ast.Identifier:
 		return i.evaluateIdentifier(e)
 	case *ast.InfixExpression:
 		return i.evaluateInfixExpression(e)
 	case *ast.PrefixExpression:
 		return i.evaluatePrefixExpression(e)
+	case *ast.IfExpression:
+		return i.evaluateIfExpression(e)
 	default:
 		return nil, fmt.Errorf("unknown expression type: %T", expr)
 	}
-}
-
-func (i *Interpreter) evaluateNumberLiteral(literal *ast.NumberLiteral) (Value, error) {
-	return &NumberValue{Value: literal.Value}, nil
-}
-
-func (i *Interpreter) evaluateStringLiteral(literal *ast.StringLiteral) (Value, error) {
-	return &StringValue{Value: literal.String()}, nil
-}
-
-func (i *Interpreter) evaluateBooleanLiteral(literal *ast.BooleanLiteral) (Value, error) {
-	return &BoolValue{Value: literal.Value}, nil
 }
 
 func (i *Interpreter) evaluateIdentifier(ident *ast.Identifier) (Value, error) {
@@ -150,12 +158,10 @@ func (i *Interpreter) evaluateInfixExpression(expr *ast.InfixExpression) (Value,
 	if err != nil {
 		return nil, err
 	}
-
 	right, err := i.evaluateExpression(expr.Right)
 	if err != nil {
 		return nil, err
 	}
-
 	return i.applyInfixOperator(expr.Operator, left, right)
 }
 
@@ -164,10 +170,45 @@ func (i *Interpreter) evaluatePrefixExpression(expr *ast.PrefixExpression) (Valu
 	if err != nil {
 		return nil, err
 	}
-
 	return i.applyPrefixOperator(expr.Operator, operand)
 }
 
+func (i *Interpreter) evaluateIfExpression(expr *ast.IfExpression) (Value, error) {
+	condValue, err := i.evaluateExpression(expr.Condition)
+	if err != nil {
+		return nil, err
+	}
+
+	boolCond, ok := condValue.(*BoolValue)
+	if !ok {
+		return nil, fmt.Errorf("if condition must be Bool, got %T", condValue)
+	}
+
+	if boolCond.Value {
+		return i.evaluateBlockStatement(expr.Consequence)
+	} else if expr.Alternative != nil {
+		return i.evaluateBlockStatement(expr.Alternative)
+	}
+
+	return nil, nil
+}
+
+func (i *Interpreter) evaluateBlockStatement(block *ast.BlockStatement) (Value, error) {
+	var result Value
+	for _, stmt := range block.Statements {
+		val, err := i.executeStatement(stmt)
+		if err != nil {
+			return nil, err
+		}
+		// Only update result if the statement produced a value
+		if val != nil {
+			result = val
+		}
+	}
+	return result, nil
+}
+
+// --- Operators ---
 func (i *Interpreter) applyInfixOperator(operator string, left, right Value) (Value, error) {
 	switch operator {
 	case "+", "-", "*", "/":
@@ -184,11 +225,9 @@ func (i *Interpreter) applyInfixOperator(operator string, left, right Value) (Va
 func (i *Interpreter) applyArithmeticOperator(operator string, left, right Value) (Value, error) {
 	leftNum, leftOk := left.(*NumberValue)
 	rightNum, rightOk := right.(*NumberValue)
-
 	if !leftOk || !rightOk {
 		return nil, fmt.Errorf("arithmetic operators require numbers")
 	}
-
 	switch operator {
 	case "+":
 		return &NumberValue{Value: leftNum.Value + rightNum.Value}, nil
@@ -220,11 +259,9 @@ func (i *Interpreter) applyEqualityOperator(operator string, left, right Value) 
 func (i *Interpreter) applyComparisonOperator(operator string, left, right Value) (Value, error) {
 	leftNum, leftOk := left.(*NumberValue)
 	rightNum, rightOk := right.(*NumberValue)
-
 	if !leftOk || !rightOk {
 		return nil, fmt.Errorf("comparison operators require numbers")
 	}
-
 	switch operator {
 	case "<":
 		return &BoolValue{Value: leftNum.Value < rightNum.Value}, nil
@@ -248,21 +285,21 @@ func (i *Interpreter) applyPrefixOperator(operator string, operand Value) (Value
 		}
 		return &NumberValue{Value: -num.Value}, nil
 	case "!":
-		bool, ok := operand.(*BoolValue)
+		boolVal, ok := operand.(*BoolValue)
 		if !ok {
 			return nil, fmt.Errorf("logical not requires a boolean")
 		}
-		return &BoolValue{Value: !bool.Value}, nil
+		return &BoolValue{Value: !boolVal.Value}, nil
 	default:
 		return nil, fmt.Errorf("unknown prefix operator: %s", operator)
 	}
 }
 
+// --- Utility ---
 func (i *Interpreter) valuesEqual(left, right Value) bool {
 	if left.Type() != right.Type() {
 		return false
 	}
-
 	switch l := left.(type) {
 	case *NumberValue:
 		r := right.(*NumberValue)

@@ -20,6 +20,7 @@ if (5 < 10) {
 
 10 == 10;
 10 != 9;
+1.234;
 `
 
 	tests := []struct {
@@ -116,6 +117,9 @@ if (5 < 10) {
 		{NUMBER, "10"},
 		{NOT_EQUAL, "!="},
 		{NUMBER, "9"},
+		{SEMICOLON, ";"},
+
+		{NUMBER, "1.234"},
 		{SEMICOLON, ";"},
 
 		{EOF, ""},

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"sigil/internal/lexer"
-	"strconv"
 	"strings"
 )
 
@@ -72,13 +71,11 @@ func (ls *LetStatement) String() string {
 }
 
 func (ls *LetStatement) TreeString(prefix string, isLast bool) string {
-	var out strings.Builder
-
 	connector := "├── "
 	if isLast {
 		connector = "└── "
 	}
-
+	var out strings.Builder
 	out.WriteString(prefix + connector + "LetStatement\n")
 
 	childPrefix := prefix
@@ -89,11 +86,9 @@ func (ls *LetStatement) TreeString(prefix string, isLast bool) string {
 	}
 
 	out.WriteString(childPrefix + "├── Name: " + ls.Name.String() + "\n")
-
 	if ls.TypeHint != nil {
 		out.WriteString(childPrefix + "├── TypeHint: " + ls.TypeHint.String() + "\n")
 	}
-
 	out.WriteString(childPrefix + "└── Value: " + ls.Value.String() + "\n")
 
 	return out.String()
@@ -123,11 +118,9 @@ type NumberLiteral struct {
 	Value float64
 }
 
-func (nl *NumberLiteral) expr() {}
-func (nl *NumberLiteral) String() string {
-	return strconv.FormatFloat(nl.Value, 'f', -1, 64)
-}
-func (nl *NumberLiteral) TokenLiteral() string { return nl.String() }
+func (nl *NumberLiteral) expr()                {}
+func (nl *NumberLiteral) String() string       { return nl.Token.Literal }
+func (nl *NumberLiteral) TokenLiteral() string { return nl.Token.Literal }
 
 func (nl *NumberLiteral) TreeString(prefix string, isLast bool) string {
 	connector := "├── "
@@ -169,13 +162,11 @@ func (ie *InfixExpression) String() string {
 }
 
 func (ie *InfixExpression) TreeString(prefix string, isLast bool) string {
-	var out strings.Builder
-
 	connector := "├── "
 	if isLast {
 		connector = "└── "
 	}
-
+	var out strings.Builder
 	out.WriteString(prefix + connector + "InfixExpression: " + ie.Operator + "\n")
 
 	childPrefix := prefix
@@ -205,13 +196,11 @@ func (pe *PrefixExpression) String() string {
 }
 
 func (pe *PrefixExpression) TreeString(prefix string, isLast bool) string {
-	var out strings.Builder
-
 	connector := "├── "
 	if isLast {
 		connector = "└── "
 	}
-
+	var out strings.Builder
 	out.WriteString(prefix + connector + "PrefixExpression: " + pe.Operator + "\n")
 
 	childPrefix := prefix
@@ -274,7 +263,7 @@ func (rs *ReturnStatement) TreeString(prefix string, isLast bool) string {
 		connector = "└── "
 	}
 
-	out.WriteString(prefix + connector + "ReturnStatement: " + rs.TokenLiteral() + "\n")
+	out.WriteString(prefix + connector + "ReturnStatement\n")
 
 	childPrefix := prefix
 	if isLast {
@@ -284,6 +273,7 @@ func (rs *ReturnStatement) TreeString(prefix string, isLast bool) string {
 	}
 
 	if rs.ReturnValue != nil {
+		// Recursively print the value as a child
 		out.WriteString(rs.ReturnValue.TreeString(childPrefix, true))
 	}
 
@@ -291,8 +281,9 @@ func (rs *ReturnStatement) TreeString(prefix string, isLast bool) string {
 }
 
 type ExpressionStatement struct {
-	Token      lexer.Token // The first token of the expression
-	Expression Expression
+	Token        lexer.Token // The first token of the expression
+	Expression   Expression
+	HasSemicolon bool
 }
 
 func (es *ExpressionStatement) stmt()                {}
@@ -309,5 +300,118 @@ func (es *ExpressionStatement) TreeString(prefix string, isLast bool) string {
 	if isLast {
 		connector = "└── "
 	}
-	return prefix + connector + "ExpressionStatement: " + es.String() + "\n"
+	var out strings.Builder
+	out.WriteString(prefix + connector + "ExpressionStatement\n")
+
+	childPrefix := prefix
+	if isLast {
+		childPrefix += "    "
+	} else {
+		childPrefix += "│   "
+	}
+
+	if es.Expression != nil {
+		out.WriteString(es.Expression.TreeString(childPrefix, true))
+	}
+
+	return out.String()
+}
+
+type BlockStatement struct {
+	Token      lexer.Token // the { token
+	Statements []Statement
+}
+
+func (bs *BlockStatement) stmt() {}
+func (bs *BlockStatement) String() string {
+	var out bytes.Buffer
+
+	for _, s := range bs.Statements {
+		out.WriteString(s.String())
+	}
+
+	return out.String()
+}
+func (bs *BlockStatement) TokenLiteral() string { return bs.Token.Literal }
+func (bs *BlockStatement) TreeString(prefix string, isLast bool) string {
+	var out strings.Builder
+
+	connector := "├── "
+	if isLast {
+		connector = "└── "
+	}
+
+	out.WriteString(prefix + connector + "BlockStatement\n")
+
+	childPrefix := prefix
+	if isLast {
+		childPrefix += "    "
+	} else {
+		childPrefix += "│   "
+	}
+
+	for i, stmt := range bs.Statements {
+		stmtIsLast := i == len(bs.Statements)-1
+		out.WriteString(stmt.TreeString(childPrefix, stmtIsLast))
+	}
+
+	return out.String()
+}
+
+type IfExpression struct {
+	Token       lexer.Token     // The 'if' token
+	Condition   Expression      // The condition to evaluate to decide which branch to take
+	Consequence *BlockStatement // Taken if condition is true
+	Alternative *BlockStatement // Taken if condition is false
+}
+
+func (ie *IfExpression) expr() {}
+func (ie *IfExpression) String() string {
+	var out bytes.Buffer
+
+	out.WriteString("if")
+	out.WriteString(ie.Condition.String())
+	out.WriteString(" ")
+	out.WriteString(ie.Consequence.String())
+
+	if ie.Alternative != nil {
+		out.WriteString("else ")
+		out.WriteString(ie.Alternative.String())
+	}
+
+	return out.String()
+}
+func (ie *IfExpression) TokenLiteral() string { return ie.Token.Literal }
+func (ie *IfExpression) TreeString(prefix string, isLast bool) string {
+	var out strings.Builder
+
+	connector := "├── "
+	if isLast {
+		connector = "└── "
+	}
+
+	out.WriteString(prefix + connector + "IfExpression\n")
+
+	childPrefix := prefix
+	if isLast {
+		childPrefix += "    "
+	} else {
+		childPrefix += "│   "
+	}
+
+	// Condition
+	out.WriteString(childPrefix + "├── Condition:\n")
+	out.WriteString(ie.Condition.TreeString(childPrefix+"│   ", true))
+
+	// Consequence
+	out.WriteString(childPrefix + "├── Consequence:\n")
+	out.WriteString(ie.Consequence.TreeString(childPrefix+"│   ", true))
+
+	// Alternative (optional)
+	if ie.Alternative != nil {
+		out.WriteString(childPrefix + "└── Alternative:\n")
+		out.WriteString(ie.Alternative.TreeString(childPrefix+"    ", true))
+	}
+
+	return out.String()
 }
