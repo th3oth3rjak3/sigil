@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sigil/internal/ast"
 	"sigil/internal/backends"
+	"sigil/internal/typechecker"
 )
 
 // Value represents a runtime value in the interpreter
@@ -11,6 +12,17 @@ type Value interface {
 	String() string
 	Type() string
 }
+
+type BuiltinFunction func(args ...Value) (Value, error)
+type Builtin struct {
+	Fn         BuiltinFunction
+	Arity      int                // When -1, arity is variadic
+	ParamTypes []typechecker.Type // expected types of arguments
+	ReturnType typechecker.Type   // return type of the builtin
+}
+
+func (b *Builtin) Type() string   { return "Function" }
+func (b *Builtin) String() string { return fmt.Sprintf("<fn %d params>", b.Arity) }
 
 // Runtime value types
 type NumberValue struct {
@@ -40,6 +52,11 @@ type ReturnValue struct {
 
 func (rv *ReturnValue) String() string { return rv.Value.String() }
 func (rv *ReturnValue) Type() string   { return rv.Value.Type() }
+
+type VoidValue struct{}
+
+func (v *VoidValue) Type() string   { return "Void" }
+func (v *VoidValue) String() string { return "" }
 
 // Runtime environment for variable storage
 type Environment struct {
@@ -164,7 +181,7 @@ func (i *Interpreter) evaluateExpression(expr ast.Expression) (Value, error) {
 	case *ast.FunctionLiteral:
 		return i.evaluateFunctionLiteral(e)
 	case *ast.CallExpression:
-		return i.evaluateCallExpression(e)
+		return i.applyCallExpression(e)
 	default:
 		return nil, fmt.Errorf("unknown expression type: %T", expr)
 	}
@@ -172,10 +189,15 @@ func (i *Interpreter) evaluateExpression(expr ast.Expression) (Value, error) {
 
 func (i *Interpreter) evaluateIdentifier(ident *ast.Identifier) (Value, error) {
 	value, exists := i.env.Get(ident.Value)
-	if !exists {
-		return nil, fmt.Errorf("undefined variable: %s", ident.Value)
+	if exists {
+		return value, nil
 	}
-	return value, nil
+
+	if builtin, ok := builtins[ident.Value]; ok {
+		return builtin, nil
+	}
+
+	return nil, fmt.Errorf("undefined variable: %s", ident.Value)
 }
 
 func (i *Interpreter) evaluateInfixExpression(expr *ast.InfixExpression) (Value, error) {
@@ -244,11 +266,30 @@ func (i *Interpreter) evaluateFunctionLiteral(fun *ast.FunctionLiteral) (Value, 
 	}, nil
 }
 
-func (i *Interpreter) evaluateCallExpression(ce *ast.CallExpression) (Value, error) {
+func (i *Interpreter) applyCallExpression(ce *ast.CallExpression) (Value, error) {
 	// Evaluate the function expression
 	fnValue, err := i.evaluateExpression(ce.Function)
 	if err != nil {
 		return nil, err
+	}
+
+	if bf, ok := fnValue.(*Builtin); ok {
+		if bf.Arity != -1 && bf.Arity != len(ce.Arguments) {
+			return nil, fmt.Errorf("argument count mismatch: expected %d, got %d",
+				bf.Arity, len(ce.Arguments))
+		}
+
+		var values []Value
+		for _, arg := range ce.Arguments {
+			val, err := i.evaluateExpression(arg)
+			if err != nil {
+				return nil, err
+			}
+
+			values = append(values, val)
+		}
+
+		return bf.Fn(values...)
 	}
 
 	fv, ok := fnValue.(*FunctionValue)
@@ -421,4 +462,4 @@ func (fv *FunctionValue) String() string {
 	return fmt.Sprintf("<fun %d params>", len(fv.Parameters))
 }
 
-func (fv *FunctionValue) Type() string { return "function" }
+func (fv *FunctionValue) Type() string { return "Function" }

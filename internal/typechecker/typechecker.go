@@ -12,6 +12,12 @@ type Type interface {
 	Equals(Type) bool
 }
 
+type BuiltinTypeInfo struct {
+	Arity      int // when -1, then variadic
+	ParamTypes []Type
+	ReturnType Type
+}
+
 // Basic types
 type NumberType struct{}
 type StringType struct{}
@@ -118,11 +124,32 @@ func NewEnclosedEnvironment(outer *Environment) *Environment {
 }
 
 func (e *Environment) Get(name string) (*Symbol, bool) {
+	// Look in the current environment
 	symbol, ok := e.store[name]
-	if !ok && e.outer != nil {
-		symbol, ok = e.outer.Get(name)
+	if ok {
+		return symbol, true
 	}
-	return symbol, ok
+
+	// Look in outer environments
+	if e.outer != nil {
+		if symbol, ok := e.outer.Get(name); ok {
+			return symbol, true
+		}
+	}
+
+	// Fallback: check builtins metadata
+	if info, ok := builtinTypes[name]; ok {
+		ftype := &FunctionType{
+			ParamTypes: info.ParamTypes,
+			ReturnType: info.ReturnType,
+		}
+		return &Symbol{
+			Name: name,
+			Type: ftype,
+		}, true
+	}
+
+	return nil, false
 }
 
 func (e *Environment) Set(name string, symbol *Symbol) {
@@ -523,6 +550,33 @@ func (tc *TypeChecker) CheckFunctionLiteral(fn *ast.FunctionLiteral) Type {
 
 func (tc *TypeChecker) CheckCallExpression(ce *ast.CallExpression) Type {
 	fnType := tc.CheckExpression(ce.Function)
+
+	if ident, ok := ce.Function.(*ast.Identifier); ok {
+		if info, exists := builtinTypes[ident.Value]; exists {
+			// check arity
+			if info.Arity != -1 && len(ce.Arguments) != info.Arity {
+				tc.addError(fmt.Sprintf("argument count mismatch: expected %d, got %d", info.Arity, len(ce.Arguments)), ce.Token.Line, ce.Token.Column)
+				return &UnknownType{}
+			}
+
+			// check argument types
+			// If arity is -1, then we only expect a single param type and all values must be that param type.
+			for i, arg := range ce.Arguments {
+				argType := tc.CheckExpression(arg)
+				if info.Arity == -1 && !argType.Equals(info.ParamTypes[0]) {
+					tc.addError(fmt.Sprintf("argument %d type mismatch: expected %v, got %v", i+1, info.ParamTypes[0], argType), ce.Token.Line, ce.Token.Column)
+					return &UnknownType{}
+				}
+
+				if info.Arity != -1 && !argType.Equals(info.ParamTypes[i]) {
+					tc.addError(fmt.Sprintf("argument %d type mismatch: expected %v, got %v", i+1, info.ParamTypes[i], argType), ce.Token.Line, ce.Token.Column)
+					return &UnknownType{}
+				}
+			}
+
+			return info.ReturnType
+		}
+	}
 
 	fn, ok := fnType.(*FunctionType)
 	if !ok {
