@@ -30,6 +30,7 @@ var precedences = map[lexer.TokenType]int{
 	lexer.MINUS:                 SUM,
 	lexer.STAR:                  PRODUCT,
 	lexer.SLASH:                 PRODUCT,
+	lexer.LEFT_PAREN:            CALL,
 }
 
 type (
@@ -81,6 +82,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(lexer.LESS_THAN, p.parseInfixExpression)
 	p.registerInfix(lexer.GREATER_THAN_OR_EQUAL, p.parseInfixExpression)
 	p.registerInfix(lexer.LESS_THAN_OR_EQUAL, p.parseInfixExpression)
+	p.registerInfix(lexer.LEFT_PAREN, p.parseCallExpression)
 
 	return p
 }
@@ -364,6 +366,36 @@ func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
 	expr.Right = p.parseExpression(precedence)
 
 	return expr
+}
+
+func (p *Parser) parseCallExpression(function ast.Expression) ast.Expression {
+	exp := &ast.CallExpression{Token: p.curToken, Function: function}
+	exp.Arguments = p.parseCallArguments()
+	return exp
+}
+
+func (p *Parser) parseCallArguments() []ast.Expression {
+	args := []ast.Expression{}
+	if p.peekTokenIs(lexer.RIGHT_PAREN) {
+		p.nextToken()
+		return args
+	}
+
+	p.nextToken()
+	args = append(args, p.parseExpression(LOWEST))
+
+	for p.peekTokenIs(lexer.COMMA) {
+		p.nextToken()
+		p.nextToken()
+
+		args = append(args, p.parseExpression(LOWEST))
+	}
+
+	if !p.expectPeek(lexer.RIGHT_PAREN) {
+		return nil
+	}
+
+	return args
 }
 
 // Precedence helpers

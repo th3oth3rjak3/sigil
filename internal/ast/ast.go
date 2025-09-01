@@ -541,3 +541,58 @@ func (fl *FunctionLiteral) TreeString(prefix string, isLast bool) string {
 
 	return out.String()
 }
+
+type CallExpression struct {
+	Token     lexer.Token // The '(' token
+	Function  Expression  // Identifier or FunctionLiteral
+	Arguments []Expression
+}
+
+func (ce *CallExpression) expr()                {}
+func (ce *CallExpression) TokenLiteral() string { return ce.Token.Literal }
+func (ce *CallExpression) String() string {
+	var out bytes.Buffer
+
+	args := []string{}
+	for _, a := range ce.Arguments {
+		args = append(args, a.String())
+	}
+
+	out.WriteString(ce.Function.String())
+	out.WriteString("(")
+	out.WriteString(strings.Join(args, ", "))
+	out.WriteString(")")
+
+	return out.String()
+}
+
+func (ce *CallExpression) TreeString(prefix string, isLast bool) string {
+	var out strings.Builder
+
+	connector := "├── "
+	if isLast {
+		connector = "└── "
+	}
+
+	out.WriteString(prefix + connector + "CallExpression\n")
+
+	childPrefix := prefix
+	if isLast {
+		childPrefix += "    "
+	} else {
+		childPrefix += "│   "
+	}
+
+	// Function
+	out.WriteString(childPrefix + "├── Function:\n")
+	out.WriteString(ce.Function.TreeString(childPrefix+"│   ", true))
+
+	// Arguments
+	out.WriteString(childPrefix + "└── Arguments:\n")
+	for i, arg := range ce.Arguments {
+		argIsLast := i == len(ce.Arguments)-1
+		out.WriteString(arg.TreeString(childPrefix+"    ", argIsLast))
+	}
+
+	return out.String()
+}

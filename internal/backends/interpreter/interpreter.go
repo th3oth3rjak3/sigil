@@ -34,6 +34,13 @@ type BoolValue struct {
 func (bv *BoolValue) String() string { return fmt.Sprintf("%t", bv.Value) }
 func (bv *BoolValue) Type() string   { return "Bool" }
 
+type ReturnValue struct {
+	Value Value
+}
+
+func (rv *ReturnValue) String() string { return rv.Value.String() }
+func (rv *ReturnValue) Type() string   { return rv.Value.Type() }
+
 // Runtime environment for variable storage
 type Environment struct {
 	store map[string]Value
@@ -78,23 +85,37 @@ func New() backends.CompilerBackend {
 }
 
 // Execute implements the CompilerBackend interface
-func (i *Interpreter) Execute(program *ast.Program) error {
+func (i *Interpreter) Execute(program *ast.Program, debug bool) error {
+	var last Value
 	for _, stmt := range program.Statements {
-		_, err := i.executeStatement(stmt)
+		val, err := i.ExecuteStatement(stmt)
 		if err != nil {
 			return err
 		}
+		if val != nil {
+			last = val
+		}
+	}
+
+	if debug {
+		fmt.Printf("INTERPRET RESULT: %+v\n", last)
 	}
 	return nil
 }
 
 // --- Statement Execution ---
-func (i *Interpreter) executeStatement(stmt ast.Statement) (Value, error) {
+func (i *Interpreter) ExecuteStatement(stmt ast.Statement) (Value, error) {
 	switch s := stmt.(type) {
 	case *ast.LetStatement:
 		return i.executeLetStatement(s)
 	case *ast.ExpressionStatement:
 		return i.executeExpressionStatement(s)
+	case *ast.ReturnStatement:
+		val, err := i.evaluateExpression(s.ReturnValue)
+		if err != nil {
+			return nil, err
+		}
+		return &ReturnValue{Value: val}, nil
 	default:
 		return nil, fmt.Errorf("unknown statement type: %T", stmt)
 	}
@@ -142,6 +163,8 @@ func (i *Interpreter) evaluateExpression(expr ast.Expression) (Value, error) {
 		return i.evaluateIfExpression(e)
 	case *ast.FunctionLiteral:
 		return i.evaluateFunctionLiteral(e)
+	case *ast.CallExpression:
+		return i.evaluateCallExpression(e)
 	default:
 		return nil, fmt.Errorf("unknown expression type: %T", expr)
 	}
@@ -198,11 +221,14 @@ func (i *Interpreter) evaluateIfExpression(expr *ast.IfExpression) (Value, error
 func (i *Interpreter) evaluateBlockStatement(block *ast.BlockStatement) (Value, error) {
 	var result Value
 	for _, stmt := range block.Statements {
-		val, err := i.executeStatement(stmt)
+		val, err := i.ExecuteStatement(stmt)
 		if err != nil {
 			return nil, err
 		}
-		// Only update result if the statement produced a value
+		if retVal, ok := val.(*ReturnValue); ok {
+			// propagate the return early
+			return retVal.Value, nil
+		}
 		if val != nil {
 			result = val
 		}
@@ -218,10 +244,66 @@ func (i *Interpreter) evaluateFunctionLiteral(fun *ast.FunctionLiteral) (Value, 
 	}, nil
 }
 
+func (i *Interpreter) evaluateCallExpression(ce *ast.CallExpression) (Value, error) {
+	// Evaluate the function expression
+	fnValue, err := i.evaluateExpression(ce.Function)
+	if err != nil {
+		return nil, err
+	}
+
+	fv, ok := fnValue.(*FunctionValue)
+	if !ok {
+		return nil, fmt.Errorf("attempted to call a non-function value: %T", fnValue)
+	}
+
+	// Check argument count
+	if len(ce.Arguments) != len(fv.Parameters) {
+		return nil, fmt.Errorf("argument count mismatch: expected %d, got %d",
+			len(fv.Parameters), len(ce.Arguments))
+	}
+
+	// Evaluate arguments
+	args := make([]Value, len(ce.Arguments))
+	for idx, argExpr := range ce.Arguments {
+		val, err := i.evaluateExpression(argExpr)
+		if err != nil {
+			return nil, err
+		}
+		args[idx] = val
+	}
+
+	// Create a new environment for this function call
+	callEnv := NewEnclosedEnvironment(fv.Env)
+	for i, param := range fv.Parameters {
+		callEnv.Set(param.Name.Value, args[i])
+	}
+
+	// Evaluate the function body in the new environment
+	originalEnv := i.env
+	i.env = callEnv
+	result, err := i.evaluateBlockStatement(fv.Body)
+	i.env = originalEnv
+
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
 // --- Operators ---
 func (i *Interpreter) applyInfixOperator(operator string, left, right Value) (Value, error) {
 	switch operator {
-	case "+", "-", "*", "/":
+	case "+":
+		if lStr, ok := left.(*StringValue); ok {
+			if rStr, ok := right.(*StringValue); ok {
+				return i.applyConcat(lStr, rStr)
+			}
+			return nil, fmt.Errorf("cannot concatenate String with %T", right)
+		}
+
+		return i.applyArithmeticOperator(operator, left, right)
+	case "-", "*", "/":
 		return i.applyArithmeticOperator(operator, left, right)
 	case "==", "!=":
 		return i.applyEqualityOperator(operator, left, right)
@@ -253,6 +335,10 @@ func (i *Interpreter) applyArithmeticOperator(operator string, left, right Value
 	default:
 		return nil, fmt.Errorf("unknown arithmetic operator: %s", operator)
 	}
+}
+
+func (i *Interpreter) applyConcat(left, right *StringValue) (Value, error) {
+	return &StringValue{Value: left.Value + right.Value}, nil
 }
 
 func (i *Interpreter) applyEqualityOperator(operator string, left, right Value) (Value, error) {

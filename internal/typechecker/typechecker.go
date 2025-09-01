@@ -220,10 +220,12 @@ func GetTypeFromIdentifier(typeIdent *ast.Identifier) Type {
 
 // Main entry point for type checking
 func (tc *TypeChecker) CheckProgram(program *ast.Program) Type {
+	var last Type = &VoidType{}
+
 	for _, stmt := range program.Statements {
-		tc.CheckStatement(stmt)
+		last = tc.CheckStatement(stmt)
 	}
-	return &VoidType{}
+	return last
 }
 
 func (tc *TypeChecker) CheckStatement(stmt ast.Statement) Type {
@@ -322,6 +324,8 @@ func (tc *TypeChecker) CheckExpression(expr ast.Expression) Type {
 		return tc.CheckIfExpression(e)
 	case *ast.FunctionLiteral:
 		return tc.CheckFunctionLiteral(e)
+	case *ast.CallExpression:
+		return tc.CheckCallExpression(e)
 	default:
 		tc.addError(fmt.Sprintf("unknown expression type: %T", expr), 0, 0)
 		return &UnknownType{}
@@ -350,7 +354,22 @@ func (tc *TypeChecker) CheckInfixExpression(expr *ast.InfixExpression) Type {
 	}
 
 	switch expr.Operator {
-	case "+", "-", "*", "/":
+	case "+":
+		// If both sides are numbers, result is Number
+		if leftType.Equals(&NumberType{}) && rightType.Equals(&NumberType{}) {
+			return &NumberType{}
+		}
+
+		// If both sides are strings, result is String
+		if leftType.Equals(&StringType{}) && rightType.Equals(&StringType{}) {
+			return &StringType{}
+		}
+
+		// Anything else is an error
+		tc.addError(fmt.Sprintf("cannot add %s and %s", leftType.String(), rightType.String()), expr.Token.Line, expr.Token.Column)
+		return &UnknownType{}
+
+	case "-", "*", "/":
 		// Arithmetic operators require numbers
 		if !leftType.Equals(&NumberType{}) {
 			tc.addError(fmt.Sprintf("left operand of %s must be Number, got %s", expr.Operator, leftType.String()), expr.Token.Line, expr.Token.Column)
@@ -500,4 +519,29 @@ func (tc *TypeChecker) CheckFunctionLiteral(fn *ast.FunctionLiteral) Type {
 		ParamTypes: paramTypes,
 		ReturnType: returnType,
 	}
+}
+
+func (tc *TypeChecker) CheckCallExpression(ce *ast.CallExpression) Type {
+	fnType := tc.CheckExpression(ce.Function)
+
+	fn, ok := fnType.(*FunctionType)
+	if !ok {
+		tc.addError(fmt.Sprintf("attempted to call a non-function type: %v", fnType), ce.Token.Line, ce.Token.Column)
+		return &UnknownType{}
+	}
+
+	if len(ce.Arguments) != len(fn.ParamTypes) {
+		tc.addError(fmt.Sprintf("argument count mismatch: expected %d, got %d", len(fn.ParamTypes), len(ce.Arguments)), ce.Token.Line, ce.Token.Column)
+		return &UnknownType{}
+	}
+
+	for i, arg := range ce.Arguments {
+		argType := tc.CheckExpression(arg)
+		if !argType.Equals(fn.ParamTypes[i]) {
+			tc.addError(fmt.Sprintf("argument %d type mismatch: expected %v, got %v", i+1, fn.ParamTypes[i], argType), ce.Token.Line, ce.Token.Column)
+			return &UnknownType{}
+		}
+	}
+
+	return fn.ReturnType
 }

@@ -9,6 +9,8 @@ import (
 	"sigil/internal/typechecker"
 )
 
+const DEBUG_MODE = true
+
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("Sigil Language Compiler")
@@ -25,25 +27,29 @@ func main() {
 		return
 	}
 
-	fmt.Printf("Compiling: %s\n", filename)
-	fmt.Printf("Source code:\n%s\n", string(source))
-	fmt.Println("\nTokens:")
+	if DEBUG_MODE {
 
-	// Tokenize the source
-	l := lexer.New(string(source))
-	for {
-		tok := l.NextToken()
-		fmt.Printf("Type: %v, Literal: '%s', Line: %d, Column: %d\n",
-			tok.Type, tok.Literal, tok.Line, tok.Column)
-		if tok.Type == lexer.EOF {
-			break
+		fmt.Printf("Compiling: %s\n", filename)
+		fmt.Printf("Source code:\n%s\n", string(source))
+		fmt.Println("\nTokens:")
+
+		// Tokenize the source
+		l := lexer.New(string(source))
+		for {
+			tok := l.NextToken()
+			fmt.Printf("Type: %v, Literal: '%s', Line: %d, Column: %d\n",
+				tok.Type, tok.Literal, tok.Line, tok.Column)
+			if tok.Type == lexer.EOF {
+				break
+			}
 		}
+
+		fmt.Println("\nParsing:")
+
 	}
 
-	fmt.Println("\nParsing:")
-
 	// Reset lexer for parsing
-	l = lexer.New(string(source))
+	l := lexer.New(string(source))
 	p := parser.New(l)
 	program := p.ParseProgram()
 
@@ -56,9 +62,10 @@ func main() {
 		return // Don't continue if there are parse errors
 	}
 
-	fmt.Printf("AST Tree:\n%s", program.TreeString("", false))
-
-	fmt.Println("\nType Checking:")
+	if DEBUG_MODE {
+		fmt.Printf("AST Tree:\n%s", program.TreeString("", false))
+		fmt.Println("\nType Checking:")
+	}
 
 	// Type check the program
 	tc := typechecker.New()
@@ -72,18 +79,17 @@ func main() {
 		return // Don't continue if there are type errors
 	}
 
-	fmt.Println("✓ Type checking passed")
-
-	fmt.Println("\nExecution:")
+	if DEBUG_MODE {
+		fmt.Println("✓ Type checking passed")
+		fmt.Println("\nExecution:")
+	}
 
 	// Execute the program with the interpreter backend
 	backend := interpreter.New()
-	err = backend.Execute(program)
+	err = backend.Execute(program, DEBUG_MODE)
 
 	if err != nil {
 		fmt.Printf("Runtime error: %s\n", err)
 		return
 	}
-
-	fmt.Println("\n✓ Program executed successfully")
 }
