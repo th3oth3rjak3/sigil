@@ -44,7 +44,7 @@ func (l *Lexer) peekChar() byte {
 
 func (l *Lexer) NextToken() Token {
 	var tok Token
-	l.skipWhitespace()
+	l.skipWhitespaceAndComments()
 
 	// Capture position at the START of the token
 	tokenLine := l.line
@@ -175,9 +175,39 @@ func (l *Lexer) newTokenAt(t TokenType, ch string, line, column int) Token {
 	}
 }
 
-func (l *Lexer) skipWhitespace() {
-	for l.ch == ' ' || l.ch == '\t' || l.ch == '\n' || l.ch == '\r' {
-		l.readChar()
+func (l *Lexer) skipWhitespaceAndComments() {
+	for {
+		switch l.ch {
+		case ' ', '\t', '\n', '\r':
+			l.readChar()
+		case '/':
+			if l.peekChar() == '/' {
+				// single-line comment
+				l.readChar() // consume second '/'
+				for l.ch != '\n' && l.ch != 0 {
+					l.readChar()
+				}
+			} else if l.peekChar() == '*' {
+				// multi-line comment
+				l.readChar() // consume '*'
+				l.readChar() // advance past first char inside comment
+				for {
+					if l.ch == 0 {
+						break
+					}
+					if l.ch == '*' && l.peekChar() == '/' {
+						l.readChar() // consume '*'
+						l.readChar() // consume '/'
+						break
+					}
+					l.readChar()
+				}
+			} else {
+				return
+			}
+		default:
+			return
+		}
 	}
 }
 
