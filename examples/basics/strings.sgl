@@ -1,2 +1,7 @@
 let length: Number = len("hello");
-length
+let msg: String = "The length is " + string(length) + ".";
+println(msg);
+
+let add = fun(a: Number, b: Number): Number { a + b };
+println(string(add));
+println(string(len));

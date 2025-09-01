@@ -1,10 +1,10 @@
 package interpreter
 
 import (
+	"bytes"
 	"fmt"
 	"sigil/internal/ast"
 	"sigil/internal/backends"
-	"sigil/internal/typechecker"
 )
 
 // Value represents a runtime value in the interpreter
@@ -15,14 +15,23 @@ type Value interface {
 
 type BuiltinFunction func(args ...Value) (Value, error)
 type Builtin struct {
-	Fn         BuiltinFunction
-	Arity      int                // When -1, arity is variadic
-	ParamTypes []typechecker.Type // expected types of arguments
-	ReturnType typechecker.Type   // return type of the builtin
+	Name  string
+	Fn    BuiltinFunction
+	Arity int // When -1, arity is variadic
 }
 
-func (b *Builtin) Type() string   { return "Function" }
-func (b *Builtin) String() string { return fmt.Sprintf("<fn %d params>", b.Arity) }
+func (b *Builtin) Type() string { return "Function" }
+func (b *Builtin) String() string {
+	var out bytes.Buffer
+	out.WriteString("<fun '")
+	out.WriteString(b.Name)
+	out.WriteString(fmt.Sprintf("' %d param", b.Arity))
+	if b.Arity != 1 {
+		out.WriteString("s")
+	}
+	out.WriteString(">")
+	return out.String()
+}
 
 // Runtime value types
 type NumberValue struct {
@@ -260,6 +269,7 @@ func (i *Interpreter) evaluateBlockStatement(block *ast.BlockStatement) (Value, 
 
 func (i *Interpreter) evaluateFunctionLiteral(fun *ast.FunctionLiteral) (Value, error) {
 	return &FunctionValue{
+		Name:       fun.Name,
 		Parameters: fun.Parameters,
 		Body:       fun.Body,
 		Env:        i.env, // capture current environment for closures
@@ -453,13 +463,22 @@ func (i *Interpreter) valuesEqual(left, right Value) bool {
 }
 
 type FunctionValue struct {
+	Name       string
 	Parameters []*ast.FunctionParameter
 	Body       *ast.BlockStatement
 	Env        *Environment
 }
 
 func (fv *FunctionValue) String() string {
-	return fmt.Sprintf("<fun %d params>", len(fv.Parameters))
+	var out bytes.Buffer
+	out.WriteString("<fun '")
+	out.WriteString(fv.Name)
+	out.WriteString(fmt.Sprintf("' %d param", len(fv.Parameters)))
+	if len(fv.Parameters) != 1 {
+		out.WriteString("s")
+	}
+	out.WriteString(">")
+	return out.String()
 }
 
 func (fv *FunctionValue) Type() string { return "Function" }

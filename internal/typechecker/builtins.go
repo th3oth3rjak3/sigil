@@ -16,4 +16,9 @@ var builtinTypes = map[string]*BuiltinTypeInfo{
 		ParamTypes: []Type{&StringType{}},
 		ReturnType: &VoidType{},
 	},
+	"string": {
+		Arity:      1,
+		ParamTypes: []Type{&UnknownType{}}, // Unknown means we allow any
+		ReturnType: &StringType{},
+	},
 }

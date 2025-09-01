@@ -460,7 +460,8 @@ func (fp *FunctionParameter) TreeString(prefix string, isLast bool) string {
 }
 
 type FunctionLiteral struct {
-	Token      lexer.Token          // The 'fn' token
+	Token      lexer.Token // The 'fn' token
+	Name       string
 	Parameters []*FunctionParameter // a list of parameters, may be empty
 	Body       *BlockStatement
 	ReturnType *Identifier // optional return type

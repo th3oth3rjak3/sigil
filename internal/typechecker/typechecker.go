@@ -563,12 +563,12 @@ func (tc *TypeChecker) CheckCallExpression(ce *ast.CallExpression) Type {
 			// If arity is -1, then we only expect a single param type and all values must be that param type.
 			for i, arg := range ce.Arguments {
 				argType := tc.CheckExpression(arg)
-				if info.Arity == -1 && !argType.Equals(info.ParamTypes[0]) {
+				if info.Arity == -1 && !info.ParamTypes[0].Equals(&UnknownType{}) && !argType.Equals(info.ParamTypes[0]) {
 					tc.addError(fmt.Sprintf("argument %d type mismatch: expected %v, got %v", i+1, info.ParamTypes[0], argType), ce.Token.Line, ce.Token.Column)
 					return &UnknownType{}
 				}
 
-				if info.Arity != -1 && !argType.Equals(info.ParamTypes[i]) {
+				if info.Arity != -1 && !info.ParamTypes[i].Equals(&UnknownType{}) && !argType.Equals(info.ParamTypes[i]) {
 					tc.addError(fmt.Sprintf("argument %d type mismatch: expected %v, got %v", i+1, info.ParamTypes[i], argType), ce.Token.Line, ce.Token.Column)
 					return &UnknownType{}
 				}

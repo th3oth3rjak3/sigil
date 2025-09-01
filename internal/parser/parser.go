@@ -123,7 +123,8 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 		return nil
 	}
 
-	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+	name := p.curToken.Literal
+	stmt.Name = &ast.Identifier{Token: p.curToken, Value: name}
 
 	// Optional type hint
 	if p.peekTokenIs(lexer.COLON) {
@@ -140,6 +141,11 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 
 	p.nextToken() // move to expression
 	stmt.Value = p.parseExpression(LOWEST)
+
+	if fn, ok := stmt.Value.(*ast.FunctionLiteral); ok {
+		fn.Name = name
+		stmt.Value = fn
+	}
 
 	if p.peekTokenIs(lexer.SEMICOLON) {
 		p.nextToken()
