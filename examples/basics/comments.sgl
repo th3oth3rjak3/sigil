@@ -1,0 +1,4 @@
+// A basic comment explaining the answer
+let answer: Number = 42;
+
+println(string(answer)); // Another fine way to leave comments.
