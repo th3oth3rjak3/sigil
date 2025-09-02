@@ -49,6 +49,14 @@ func (p *Program) TreeString(prefix string, isLast bool) string {
 	return out.String()
 }
 
+func (p *Program) TokenLiteral() string {
+	if len(p.Statements) > 0 {
+		return p.Statements[0].TokenLiteral()
+	} else {
+		return ""
+	}
+}
+
 // LetStatement represents variable declarations
 type LetStatement struct {
 	Token    lexer.Token // the LET token

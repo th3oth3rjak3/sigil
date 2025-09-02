@@ -187,21 +187,6 @@ func (l *Lexer) skipWhitespaceAndComments() {
 				for l.ch != '\n' && l.ch != 0 {
 					l.readChar()
 				}
-			} else if l.peekChar() == '*' {
-				// multi-line comment
-				l.readChar() // consume '*'
-				l.readChar() // advance past first char inside comment
-				for {
-					if l.ch == 0 {
-						break
-					}
-					if l.ch == '*' && l.peekChar() == '/' {
-						l.readChar() // consume '*'
-						l.readChar() // consume '/'
-						break
-					}
-					l.readChar()
-				}
 			} else {
 				return
 			}

@@ -3,98 +3,7 @@ package typechecker
 import (
 	"fmt"
 	"sigil/internal/ast"
-	"strings"
 )
-
-// Type represents a type in the language
-type Type interface {
-	String() string
-	Equals(Type) bool
-}
-
-type BuiltinTypeInfo struct {
-	Arity      int // when -1, then variadic
-	ParamTypes []Type
-	ReturnType Type
-}
-
-// Basic types
-type NumberType struct{}
-type StringType struct{}
-type BoolType struct{}
-type VoidType struct{}    // for statements that don't return values
-type UnknownType struct{} // For errors during type checking
-
-func (nt *NumberType) String() string { return "Number" }
-func (nt *NumberType) Equals(other Type) bool {
-	_, ok := other.(*NumberType)
-	return ok
-}
-
-func (st *StringType) String() string { return "String" }
-func (st *StringType) Equals(other Type) bool {
-	_, ok := other.(*StringType)
-	return ok
-}
-
-func (bt *BoolType) String() string { return "Bool" }
-func (bt *BoolType) Equals(other Type) bool {
-	_, ok := other.(*BoolType)
-	return ok
-}
-
-func (vt *VoidType) String() string { return "Void" }
-func (vt *VoidType) Equals(other Type) bool {
-	_, ok := other.(*VoidType)
-	return ok
-}
-
-func (ut *UnknownType) String() string { return "Unknown" }
-func (ut *UnknownType) Equals(other Type) bool {
-	_, ok := other.(*UnknownType)
-	return ok
-}
-
-// FunctionType represents a function with parameters and a return type
-type FunctionType struct {
-	ParamTypes []Type
-	ReturnType Type
-}
-
-func (ft *FunctionType) String() string {
-	params := []string{}
-	for _, p := range ft.ParamTypes {
-		params = append(params, p.String())
-	}
-	return fmt.Sprintf("(%s) -> %s", strings.Join(params, ", "), ft.ReturnType.String())
-}
-
-func (ft *FunctionType) Equals(other Type) bool {
-	o, ok := other.(*FunctionType)
-	if !ok {
-		return false
-	}
-	if len(ft.ParamTypes) != len(o.ParamTypes) {
-		return false
-	}
-	for i := range ft.ParamTypes {
-		if !ft.ParamTypes[i].Equals(o.ParamTypes[i]) {
-			return false
-		}
-	}
-	return ft.ReturnType.Equals(o.ReturnType)
-}
-
-// Type error with position information
-type TypeError struct {
-	Message string
-	Line    int
-	Column  int
-}
-
-func (te *TypeError) Error() string {
-	return fmt.Sprintf("Type error at line %d, column %d: %s", te.Line, te.Column, te.Message)
-}
 
 // Symbol represents a variable in the symbol table
 type Symbol struct {
@@ -216,11 +125,11 @@ func (tc *TypeChecker) parseTypeFromIdentifier(typeIdent *ast.Identifier) Type {
 	}
 
 	switch typeIdent.Value {
-	case "Number":
+	case NUMBER:
 		return &NumberType{}
-	case "String":
+	case STRING:
 		return &StringType{}
-	case "Bool":
+	case BOOLEAN:
 		return &BoolType{}
 	default:
 		tc.addError(fmt.Sprintf("unknown type: %s", typeIdent.Value), typeIdent.Token.Line, typeIdent.Token.Column)
@@ -234,11 +143,11 @@ func GetTypeFromIdentifier(typeIdent *ast.Identifier) Type {
 	}
 
 	switch typeIdent.Value {
-	case "Number":
+	case NUMBER:
 		return &NumberType{}
-	case "String":
+	case STRING:
 		return &StringType{}
-	case "Bool":
+	case BOOLEAN:
 		return &BoolType{}
 	default:
 		return &UnknownType{}
@@ -401,11 +310,27 @@ func (tc *TypeChecker) CheckInfixExpression(expr *ast.InfixExpression) Type {
 	case "-", "*", "/":
 		// Arithmetic operators require numbers
 		if !leftType.Equals(&NumberType{}) {
-			tc.addError(fmt.Sprintf("left operand of %s must be Number, got %s", expr.Operator, leftType.String()), expr.Token.Line, expr.Token.Column)
+			tc.addError(
+				fmt.Sprintf(
+					"left operand of %s must be %s, got %s",
+					expr.Operator,
+					NUMBER,
+					leftType.String()),
+				expr.Token.Line,
+				expr.Token.Column)
 		}
+
 		if !rightType.Equals(&NumberType{}) {
-			tc.addError(fmt.Sprintf("right operand of %s must be Number, got %s", expr.Operator, rightType.String()), expr.Token.Line, expr.Token.Column)
+			tc.addError(
+				fmt.Sprintf(
+					"right operand of %s must be %s, got %s",
+					expr.Operator,
+					NUMBER,
+					rightType.String()),
+				expr.Token.Line,
+				expr.Token.Column)
 		}
+
 		return &NumberType{}
 
 	case "==", "!=":
@@ -418,10 +343,25 @@ func (tc *TypeChecker) CheckInfixExpression(expr *ast.InfixExpression) Type {
 	case "<", ">", "<=", ">=":
 		// Comparison operators require numbers
 		if !leftType.Equals(&NumberType{}) {
-			tc.addError(fmt.Sprintf("left operand of %s must be Number, got %s", expr.Operator, leftType.String()), expr.Token.Line, expr.Token.Column)
+			tc.addError(
+				fmt.Sprintf(
+					"left operand of %s must be %s, got %s",
+					expr.Operator,
+					NUMBER,
+					leftType.String()),
+				expr.Token.Line,
+				expr.Token.Column)
 		}
+
 		if !rightType.Equals(&NumberType{}) {
-			tc.addError(fmt.Sprintf("right operand of %s must be Number, got %s", expr.Operator, rightType.String()), expr.Token.Line, expr.Token.Column)
+			tc.addError(
+				fmt.Sprintf(
+					"right operand of %s must be %s, got %s",
+					expr.Operator,
+					NUMBER,
+					rightType.String()),
+				expr.Token.Line,
+				expr.Token.Column)
 		}
 		return &BoolType{}
 
@@ -442,13 +382,13 @@ func (tc *TypeChecker) CheckPrefixExpression(expr *ast.PrefixExpression) Type {
 	switch expr.Operator {
 	case "-":
 		if !operandType.Equals(&NumberType{}) {
-			tc.addError(fmt.Sprintf("unary minus requires Number, got %s", operandType.String()), expr.Token.Line, expr.Token.Column)
+			tc.addError(fmt.Sprintf("unary minus requires %s, got %s", NUMBER, operandType.String()), expr.Token.Line, expr.Token.Column)
 		}
 		return &NumberType{}
 
 	case "!":
 		if !operandType.Equals(&BoolType{}) {
-			tc.addError(fmt.Sprintf("logical not requires Bool, got %s", operandType.String()), expr.Token.Line, expr.Token.Column)
+			tc.addError(fmt.Sprintf("logical not requires %s, got %s", BOOLEAN, operandType.String()), expr.Token.Line, expr.Token.Column)
 		}
 		return &BoolType{}
 
@@ -461,9 +401,9 @@ func (tc *TypeChecker) CheckPrefixExpression(expr *ast.PrefixExpression) Type {
 func (tc *TypeChecker) CheckIfExpression(expr *ast.IfExpression) Type {
 	condType := tc.CheckExpression(expr.Condition)
 
-	// Condition must be Bool
+	// Condition must be Boolean
 	if !condType.Equals(&BoolType{}) {
-		tc.addError(fmt.Sprintf("if condition must be Bool, got %s", condType.String()), expr.Token.Line, expr.Token.Column)
+		tc.addError(fmt.Sprintf("if condition must be %s, got %s", BOOLEAN, condType.String()), expr.Token.Line, expr.Token.Column)
 	}
 
 	// Check consequence block

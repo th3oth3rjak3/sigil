@@ -112,7 +112,7 @@ func TestTypeCheckerExtended(t *testing.T) {
 	}{
 		// Arithmetic and prefix expressions
 		{"-5", "Number", false},
-		{"!true", "Bool", false},
+		{"!true", "Boolean", false},
 		{"-true", "", true}, // invalid unary minus
 		{"!42", "", true},   // invalid logical not
 		{"1 + 2 * 3", "Number", false},
@@ -132,14 +132,14 @@ func TestTypeCheckerExtended(t *testing.T) {
 		{"fun(x: Number): Number { x + 1 }(\"wrong\")", "", true},
 
 		// Equality comparisons
-		{"1 == 2", "Bool", false},
+		{"1 == 2", "Boolean", false},
 		{"1 == \"hi\"", "", true}, // invalid equality between different types
 
 		// Boolean comparisons
-		{"true == false", "Bool", false},
+		{"true == false", "Boolean", false},
 
 		// Less than / greater than
-		{"5 < 10", "Bool", false},
+		{"5 < 10", "Boolean", false},
 		{"5 < \"x\"", "", true}, // invalid comparison
 	}
 

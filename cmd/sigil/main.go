@@ -85,7 +85,7 @@ func main() {
 	}
 
 	// Execute the program with the interpreter backend
-	backend := interpreter.New()
+	backend := interpreter.NewEvaluator()
 	err = backend.Execute(program, DEBUG_MODE)
 
 	if err != nil {
