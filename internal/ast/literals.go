@@ -132,7 +132,7 @@ func (bl *BooleanLiteral) TreeString(prefix string, isLast bool) string {
 
 type FunctionParameter struct {
 	Name     *Identifier
-	TypeHint *Identifier // may be nil if no type hint provided
+	TypeHint Type // may be nil if no type hint provided
 }
 
 func (fp *FunctionParameter) String() string {
@@ -176,7 +176,7 @@ type FunctionLiteral struct {
 	Name       string
 	Parameters []*FunctionParameter // a list of parameters, may be empty
 	Body       *BlockStatement
-	ReturnType *Identifier // optional return type
+	ReturnType Type
 }
 
 func (fl *FunctionLiteral) expr() {}
@@ -250,6 +250,74 @@ func (fl *FunctionLiteral) TreeString(prefix string, isLast bool) string {
 		bodyConnector := "└── "
 		out.WriteString(childPrefix + bodyConnector + "Body:\n")
 		out.WriteString(fl.Body.TreeString(childPrefix+"    ", true))
+	}
+
+	return out.String()
+}
+
+type Type interface {
+	Node
+	typeNode()
+	expr()
+	String() string
+}
+
+type SimpleType struct {
+	Token lexer.Token
+	Name  string
+}
+
+func (st *SimpleType) expr()                {}
+func (st *SimpleType) typeNode()            {}
+func (st *SimpleType) TokenLiteral() string { return st.Token.Literal }
+func (st *SimpleType) String() string       { return st.Name }
+func (st *SimpleType) TreeString(prefix string, isLast bool) string {
+	connector := "├── "
+	if isLast {
+		connector = "└── "
+	}
+	return prefix + connector + "SimpleType: " + st.Name + "\n"
+}
+
+type FunctionType struct {
+	ParamTypes []Type
+	ReturnType Type
+}
+
+func (ft *FunctionType) expr()                {}
+func (ft *FunctionType) typeNode()            {}
+func (ft *FunctionType) TokenLiteral() string { return "fn" }
+func (ft *FunctionType) String() string {
+	parts := []string{}
+	for _, p := range ft.ParamTypes {
+		parts = append(parts, p.String())
+	}
+	return "(" + strings.Join(parts, ", ") + ") -> " + ft.ReturnType.String()
+}
+func (ft *FunctionType) TreeString(prefix string, isLast bool) string {
+	connector := "├── "
+	if isLast {
+		connector = "└── "
+	}
+	var out strings.Builder
+	out.WriteString(prefix + connector + "FunctionType\n")
+
+	childPrefix := prefix
+	if isLast {
+		childPrefix += "    "
+	} else {
+		childPrefix += "│   "
+	}
+
+	// Parameter types
+	for i, p := range ft.ParamTypes {
+		paramIsLast := i == len(ft.ParamTypes)-1 && ft.ReturnType == nil
+		out.WriteString(p.TreeString(childPrefix, paramIsLast))
+	}
+
+	// Return type
+	if ft.ReturnType != nil {
+		out.WriteString(ft.ReturnType.TreeString(childPrefix, true))
 	}
 
 	return out.String()

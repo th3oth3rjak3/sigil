@@ -87,7 +87,7 @@ func (bs *BlockStatement) TreeString(prefix string, isLast bool) string {
 type LetStatement struct {
 	Token    lexer.Token // the LET token
 	Name     *Identifier
-	TypeHint *Identifier // for type annotations like ': Number'
+	TypeHint Type // for type annotations like ': Number'
 	Value    Expression
 }
 

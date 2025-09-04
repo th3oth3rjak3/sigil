@@ -2,10 +2,10 @@ package interpreter
 
 import "sigil/internal/ast"
 
-func evalProgram(program *ast.Program) Object {
+func evalProgram(program *ast.Program, env *EvaluatorEnvironment) Object {
 	var result Object
 	for _, statement := range program.Statements {
-		result = Eval(statement)
+		result = Eval(statement, env)
 
 		switch result := result.(type) {
 		case *ReturnObject:
@@ -18,10 +18,10 @@ func evalProgram(program *ast.Program) Object {
 	return result
 }
 
-func evalBlockStatement(block *ast.BlockStatement) Object {
+func evalBlockStatement(block *ast.BlockStatement, env *EvaluatorEnvironment) Object {
 	var result Object
 	for _, statement := range block.Statements {
-		result = Eval(statement)
+		result = Eval(statement, env)
 
 		if result != nil {
 			rt := result.Type()

@@ -177,8 +177,10 @@ type PrefixExpression struct {
 	Right    Expression
 }
 
-func (pe *PrefixExpression) expr()                {}
-func (pe *PrefixExpression) TokenLiteral() string { return "TODO" }
+func (pe *PrefixExpression) expr() {}
+func (pe *PrefixExpression) TokenLiteral() string {
+	return pe.Token.Literal + " " + pe.Right.TokenLiteral()
+}
 func (pe *PrefixExpression) String() string {
 	return "(" + pe.Operator + pe.Right.String() + ")"
 }
@@ -211,8 +213,10 @@ type InfixExpression struct {
 	Right    Expression
 }
 
-func (ie *InfixExpression) expr()                {}
-func (ie *InfixExpression) TokenLiteral() string { return "TODO" }
+func (ie *InfixExpression) expr() {}
+func (ie *InfixExpression) TokenLiteral() string {
+	return ie.Left.TokenLiteral() + " " + ie.Token.Literal + " " + ie.Right.TokenLiteral()
+}
 func (ie *InfixExpression) String() string {
 	return "(" + ie.Left.String() + " " + ie.Operator + " " + ie.Right.String() + ")"
 }

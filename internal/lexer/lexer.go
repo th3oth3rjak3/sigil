@@ -76,7 +76,18 @@ func (l *Lexer) NextToken() Token {
 	case '+':
 		tok = l.newTokenAt(PLUS, string(l.ch), tokenLine, tokenColumn)
 	case '-':
-		tok = l.newTokenAt(MINUS, string(l.ch), tokenLine, tokenColumn)
+		if l.peekChar() == '>' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{
+				Type:    ARROW,
+				Literal: string(ch) + string(l.ch),
+				Line:    tokenLine,
+				Column:  tokenColumn,
+			}
+		} else {
+			tok = l.newTokenAt(MINUS, string(l.ch), tokenLine, tokenColumn)
+		}
 	case '*':
 		tok = l.newTokenAt(STAR, string(l.ch), tokenLine, tokenColumn)
 	case '/':

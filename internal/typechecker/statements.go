@@ -29,26 +29,56 @@ func (tc *TypeChecker) CheckStatement(stmt ast.Statement) Type {
 	}
 }
 
-func (tc *TypeChecker) CheckLetStatement(stmt *ast.LetStatement) Type {
-	var declaredType Type
-	if stmt.TypeHint != nil {
-		declaredType = tc.parseTypeFromIdentifier(stmt.TypeHint)
-	} else if stmt.Value != nil {
-		declaredType = tc.typeFromExpression(stmt.Value)
-	} else {
-		tc.addError("type annotation is required for variable declarations", stmt.Token.Line, stmt.Token.Column)
-		return &UnknownType{}
-	}
+// func (tc *TypeChecker) CheckLetStatement(stmt *ast.LetStatement) Type {
+// 	var declaredType Type
+// 	if stmt.TypeHint != nil {
+// 		declaredType = tc.parseTypeFromAstType(stmt.TypeHint)
+// 	} else if stmt.Value != nil {
+// 		declaredType = tc.typeFromExpression(stmt.Value)
+// 	} else {
+// 		tc.addError("type annotation is required for variable declarations", stmt.Token.Line, stmt.Token.Column)
+// 		return &UnknownType{}
+// 	}
 
+// 	valueType := tc.CheckExpression(stmt.Value)
+
+// 	if !declaredType.Equals(valueType) {
+// 		tc.addError(
+// 			fmt.Sprintf("type mismatch: declared %s but got %s", declaredType.String(), valueType.String()),
+// 			stmt.Token.Line, stmt.Token.Column,
+// 		)
+// 	}
+
+// 	tc.env.Set(stmt.Name.Value, &Symbol{
+// 		Name:   stmt.Name.Value,
+// 		Type:   declaredType,
+// 		Line:   stmt.Name.Token.Line,
+// 		Column: stmt.Name.Token.Column,
+// 	})
+
+// 	return &VoidType{}
+// }
+
+func (tc *TypeChecker) CheckLetStatement(stmt *ast.LetStatement) Type {
+	// First, check the value expression
 	valueType := tc.CheckExpression(stmt.Value)
 
-	if !declaredType.Equals(valueType) {
-		tc.addError(
-			fmt.Sprintf("type mismatch: declared %s but got %s", declaredType.String(), valueType.String()),
-			stmt.Token.Line, stmt.Token.Column,
-		)
+	var declaredType Type
+	if stmt.TypeHint != nil {
+		declaredType = tc.parseTypeFromAstType(stmt.TypeHint)
+		// Only compare if a type hint exists
+		if !declaredType.Equals(valueType) {
+			tc.addError(
+				fmt.Sprintf("type mismatch: declared %s but got %s", declaredType.String(), valueType.String()),
+				stmt.Token.Line, stmt.Token.Column,
+			)
+		}
+	} else {
+		// No type hint → infer from value
+		declaredType = valueType
 	}
 
+	// Store in environment
 	tc.env.Set(stmt.Name.Value, &Symbol{
 		Name:   stmt.Name.Value,
 		Type:   declaredType,

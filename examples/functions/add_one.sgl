@@ -1,0 +1,10 @@
+let addOne = fun(x: Number): () -> Number {
+    let inner = fun(): Number {
+        x + 1
+    }
+
+    inner
+}
+
+let myAdder = addOne(2);
+myAdder()

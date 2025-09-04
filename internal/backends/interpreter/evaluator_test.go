@@ -10,7 +10,8 @@ func testEval(input string) Object {
 	l := lexer.New(input)
 	p := parser.New(l)
 	program := p.ParseProgram()
-	return Eval(program)
+	env := NewEvaluatorEnvironment()
+	return Eval(program, env)
 }
 
 func testNumberObject(t *testing.T, obj Object, expected float64) bool {
@@ -233,6 +234,7 @@ func TestErrorHandling(t *testing.T) {
 		{"true + false", "unknown operator: Boolean + Boolean"},
 		{"5; true + false; 5;", "unknown operator: Boolean + Boolean"},
 		{"if (10 > 1) { true + false; }", "unknown operator: Boolean + Boolean"},
+		{"foobar", "identifier not found: foobar"},
 	}
 
 	for _, tt := range tests {
@@ -246,5 +248,63 @@ func TestErrorHandling(t *testing.T) {
 		if errObj.Message != tt.expectedMessage {
 			t.Errorf("wrong message. expected=%q, got=%q", tt.expectedMessage, errObj.Message)
 		}
+	}
+}
+
+func TestLetStatement(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected float64
+	}{
+		{"let a = 5; a;", 5},
+		{"let a = 5 * 5; a;", 25},
+		{"let a = 5; let b = a; b;", 5},
+		{"let a = 5; let b = a; let c = a + b + 5; c;", 15},
+	}
+
+	for _, tt := range tests {
+		testNumberObject(t, testEval(tt.input), tt.expected)
+	}
+}
+
+func TestFunctionObject(t *testing.T) {
+	input := "fun(x: Number): Number { x + 2 }"
+
+	evaluated := testEval(input)
+	fn, ok := evaluated.(*Function)
+	if !ok {
+		t.Fatalf("object is not %s. got=%T (%+v)", FUNCTION_OBJ, evaluated, evaluated)
+	}
+
+	if len(fn.Parameters) != 1 {
+		t.Fatalf("function has wrong parameters. Parameters=%+v", fn.Parameters)
+	}
+
+	if fn.Parameters[0].Name.String() != "x" || fn.Parameters[0].TypeHint.String() != "Number" {
+		t.Fatalf("Parameter name or type hint is not correct, got=%+v", fn.Parameters[0])
+	}
+
+	expectedBody := "(x + 2)"
+
+	if fn.Body.String() != expectedBody {
+		t.Fatalf("body is not %q, got=%q", expectedBody, fn.Body.String())
+	}
+}
+
+func TestFunctionApplication(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected float64
+	}{
+		{"let identity = fun(x: Number): Number { x }; identity(5);", 5},
+		{"let identity = fun(x: Number): Number { return x; }; identity(5);", 5},
+		{"let double = fun(x: Number): Number { x * 2 }; double(5);", 10},
+		{"let add = fun(x: Number, y: Number): Number { x + y }; add(2, 5);", 7},
+		{"let add = fun(x: Number, y: Number): Number { x + y }; add(5 + 5, add(5, 5));", 20},
+		{"fun(x: Number): Number { x }(5);", 5},
+	}
+
+	for _, tt := range tests {
+		testNumberObject(t, testEval(tt.input), tt.expected)
 	}
 }

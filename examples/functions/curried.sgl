@@ -1,0 +1,12 @@
+let complex = fun(x: Number): (Number) -> (Number) -> Number {
+    fun(y: Number): (Number) -> Number {
+        fun(z: Number): Number {
+            x + y + z
+        }
+    }
+}
+
+let step1 = complex(1);
+let step2 = step1(2);
+let final = step2(3);
+final; // should be 6

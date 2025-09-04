@@ -17,44 +17,6 @@
   # https://devenv.sh/languages/
   languages.go.enable = true;
 
-  # https://devenv.sh/processes/
-  # processes.hello.exec = "hello";
-
-  # https://devenv.sh/services/
-  # services.postgres.enable = true;
-
-  # https://devenv.sh/scripts/
-  scripts.hello.exec = ''
-    echo hello from $GREET
-  '';
-
-  scripts.test.exec = ''
-    go test ./...
-  '';
-
-  scripts.build.exec = ''
-    go build -o bin/compiler ./cmd/compiler
-  '';
-
-  scripts.run.exec = ''
-    go run ./cmd/compiler "$@"
-  '';
-
-  scripts.fmt.exec = ''
-    go fmt ./...
-    goimports -w .
-  '';
-
-  scripts.lint.exec = ''
-    go vet ./...
-  '';
-
-  # https://devenv.sh/tasks/
-  # tasks = {
-  #   "myproj:setup".exec = "mytool build";
-  #   "devenv:enterShell".after = [ "myproj:setup" ];
-  # };
-
   enterShell = ''
     echo
     echo "🚀 Language Development Environment"
@@ -72,7 +34,7 @@
   '';
 
   # https://devenv.sh/pre-commit-hooks/
-  pre-commit.hooks = {
+  git-hooks.hooks = {
     gofmt.enable = true;
     govet.enable = true;
   };

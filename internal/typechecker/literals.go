@@ -9,14 +9,14 @@ func (tc *TypeChecker) CheckFunctionLiteral(fn *ast.FunctionLiteral) Type {
 	// Parse parameter types
 	paramTypes := []Type{}
 	for _, param := range fn.Parameters {
-		paramTypes = append(paramTypes, tc.parseTypeFromIdentifier(param.TypeHint))
+		paramTypes = append(paramTypes, tc.parseTypeFromAstType(param.TypeHint))
 	}
 
 	// Expected return type
 	var returnType Type
 	returnType = &UnknownType{}
 	if fn.ReturnType != nil {
-		returnType = tc.parseTypeFromIdentifier(fn.ReturnType)
+		returnType = tc.parseTypeFromAstType(fn.ReturnType)
 	}
 
 	// --- Predeclare function in current environment ---

@@ -10,8 +10,8 @@ func nativeBoolToBooleanObject(input bool) Object {
 	return FALSE
 }
 
-func evalIfExpression(expr *ast.IfExpression) Object {
-	condition := Eval(expr.Condition)
+func evalIfExpression(expr *ast.IfExpression, env *EvaluatorEnvironment) Object {
+	condition := Eval(expr.Condition, env)
 	if isError(condition) {
 		return condition
 	}
@@ -25,10 +25,34 @@ func evalIfExpression(expr *ast.IfExpression) Object {
 	}
 
 	if condVal.Value {
-		return Eval(expr.Consequence)
+		return Eval(expr.Consequence, env)
 	} else if expr.Alternative != nil {
-		return Eval(expr.Alternative)
+		return Eval(expr.Alternative, env)
 	} else {
 		return NULL
 	}
+}
+
+func evalIdentifier(expr *ast.Identifier, env *EvaluatorEnvironment) Object {
+	val, ok := env.Get(expr.Value)
+	if !ok {
+		return newError("identifier not found: %s", expr.Value)
+	}
+
+	return val
+}
+
+func evalExpressions(exps []ast.Expression, env *EvaluatorEnvironment) []Object {
+	var result []Object
+
+	for _, e := range exps {
+		evaluated := Eval(e, env)
+		if isError(evaluated) {
+			return []Object{evaluated}
+		}
+
+		result = append(result, evaluated)
+	}
+
+	return result
 }

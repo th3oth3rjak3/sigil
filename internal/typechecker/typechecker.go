@@ -95,44 +95,33 @@ func (tc *TypeChecker) HasErrors() bool {
 	return len(tc.errors) > 0
 }
 
-func (tc *TypeChecker) typeFromExpression(expr ast.Expression) Type {
-	switch e := expr.(type) {
-	case *ast.NumberLiteral:
-		return &NumberType{}
-	case *ast.StringLiteral:
-		return &StringType{}
-	case *ast.BooleanLiteral:
-		return &BoolType{}
-	case *ast.FunctionLiteral:
-		paramTypes := []Type{}
-		for _, param := range e.Parameters {
-			paramTypes = append(paramTypes, tc.parseTypeFromIdentifier(param.TypeHint))
+func (tc *TypeChecker) parseTypeFromAstType(t ast.Type) Type {
+	switch tt := t.(type) {
+	case *ast.SimpleType:
+		switch tt.Name {
+		case NUMBER:
+			return &NumberType{}
+		case STRING:
+			return &StringType{}
+		case BOOLEAN:
+			return &BoolType{}
+		case VOID:
+			return &VoidType{}
+		default:
+			tc.addError(fmt.Sprintf("unknown type: %s", tt.Name), tt.Token.Line, tt.Token.Column)
+			return &UnknownType{}
 		}
-		retType := tc.parseTypeFromIdentifier(e.ReturnType)
+	case *ast.FunctionType:
+		paramTypes := []Type{}
+		for _, p := range tt.ParamTypes {
+			paramTypes = append(paramTypes, tc.parseTypeFromAstType(p))
+		}
+		retType := tc.parseTypeFromAstType(tt.ReturnType)
 		return &FunctionType{
 			ParamTypes: paramTypes,
 			ReturnType: retType,
 		}
 	default:
-		return &UnknownType{}
-	}
-}
-
-// Helper function to parse type annotations from identifiers
-func (tc *TypeChecker) parseTypeFromIdentifier(typeIdent *ast.Identifier) Type {
-	if typeIdent == nil {
-		return &UnknownType{}
-	}
-
-	switch typeIdent.Value {
-	case NUMBER:
-		return &NumberType{}
-	case STRING:
-		return &StringType{}
-	case BOOLEAN:
-		return &BoolType{}
-	default:
-		tc.addError(fmt.Sprintf("unknown type: %s", typeIdent.Value), typeIdent.Token.Line, typeIdent.Token.Column)
 		return &UnknownType{}
 	}
 }
@@ -153,4 +142,3 @@ func GetTypeFromIdentifier(typeIdent *ast.Identifier) Type {
 		return &UnknownType{}
 	}
 }
-
