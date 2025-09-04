@@ -13,25 +13,10 @@ func (tc *TypeChecker) CheckFunctionLiteral(fn *ast.FunctionLiteral) Type {
 	}
 
 	// Expected return type
-	var returnType Type
-	returnType = &UnknownType{}
+	var returnType Type = &UnknownType{}
 	if fn.ReturnType != nil {
 		returnType = tc.parseTypeFromAstType(fn.ReturnType)
 	}
-
-	// --- Predeclare function in current environment ---
-	fnType := &FunctionType{
-		ParamTypes: paramTypes,
-		ReturnType: returnType,
-	}
-
-	// If the function has a name, insert it in the environment now
-	tc.env.Set(fn.Name, &Symbol{
-		Name:   fn.Name,
-		Type:   fnType,
-		Line:   fn.Token.Line,
-		Column: fn.Token.Column,
-	})
 
 	// New scope for function body
 	oldEnv := tc.env
@@ -64,7 +49,6 @@ func (tc *TypeChecker) CheckFunctionLiteral(fn *ast.FunctionLiteral) Type {
 		), fn.Token.Line, fn.Token.Column)
 	}
 
-	// Return a FunctionType (you’ll need to define it)
 	return &FunctionType{
 		ParamTypes: paramTypes,
 		ReturnType: returnType,

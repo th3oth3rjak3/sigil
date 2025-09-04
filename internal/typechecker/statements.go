@@ -29,62 +29,67 @@ func (tc *TypeChecker) CheckStatement(stmt ast.Statement) Type {
 	}
 }
 
-// func (tc *TypeChecker) CheckLetStatement(stmt *ast.LetStatement) Type {
-// 	var declaredType Type
-// 	if stmt.TypeHint != nil {
-// 		declaredType = tc.parseTypeFromAstType(stmt.TypeHint)
-// 	} else if stmt.Value != nil {
-// 		declaredType = tc.typeFromExpression(stmt.Value)
-// 	} else {
-// 		tc.addError("type annotation is required for variable declarations", stmt.Token.Line, stmt.Token.Column)
-// 		return &UnknownType{}
-// 	}
-
-// 	valueType := tc.CheckExpression(stmt.Value)
-
-// 	if !declaredType.Equals(valueType) {
-// 		tc.addError(
-// 			fmt.Sprintf("type mismatch: declared %s but got %s", declaredType.String(), valueType.String()),
-// 			stmt.Token.Line, stmt.Token.Column,
-// 		)
-// 	}
-
-// 	tc.env.Set(stmt.Name.Value, &Symbol{
-// 		Name:   stmt.Name.Value,
-// 		Type:   declaredType,
-// 		Line:   stmt.Name.Token.Line,
-// 		Column: stmt.Name.Token.Column,
-// 	})
-
-// 	return &VoidType{}
-// }
-
 func (tc *TypeChecker) CheckLetStatement(stmt *ast.LetStatement) Type {
-	// First, check the value expression
-	valueType := tc.CheckExpression(stmt.Value)
-
 	var declaredType Type
-	if stmt.TypeHint != nil {
-		declaredType = tc.parseTypeFromAstType(stmt.TypeHint)
-		// Only compare if a type hint exists
-		if !declaredType.Equals(valueType) {
-			tc.addError(
-				fmt.Sprintf("type mismatch: declared %s but got %s", declaredType.String(), valueType.String()),
-				stmt.Token.Line, stmt.Token.Column,
-			)
+	var valueType Type
+
+	// Special handling for function literals to enable recursion
+	if fnLit, ok := stmt.Value.(*ast.FunctionLiteral); ok {
+		// For function assignments, predeclare the variable first
+		if stmt.TypeHint != nil {
+			declaredType = tc.parseTypeFromAstType(stmt.TypeHint)
+		} else {
+			// Infer function type from the literal
+			paramTypes := []Type{}
+			for _, param := range fnLit.Parameters {
+				paramTypes = append(paramTypes, tc.parseTypeFromAstType(param.TypeHint))
+			}
+			var returnType Type = &UnknownType{}
+			if fnLit.ReturnType != nil {
+				returnType = tc.parseTypeFromAstType(fnLit.ReturnType)
+			}
+			declaredType = &FunctionType{
+				ParamTypes: paramTypes,
+				ReturnType: returnType,
+			}
 		}
+
+		// Predeclare the function in the environment
+		tc.env.Set(stmt.Name.Value, &Symbol{
+			Name:   stmt.Name.Value,
+			Type:   declaredType,
+			Line:   stmt.Name.Token.Line,
+			Column: stmt.Name.Token.Column,
+		})
+
+		// Now check the function literal (it can see itself)
+		valueType = tc.CheckExpression(stmt.Value)
 	} else {
-		// No type hint → infer from value
-		declaredType = valueType
+		// Regular non-function assignment
+		valueType = tc.CheckExpression(stmt.Value)
+		if stmt.TypeHint != nil {
+			declaredType = tc.parseTypeFromAstType(stmt.TypeHint)
+		} else {
+			declaredType = valueType
+		}
+
+		// Store in environment
+		tc.env.Set(stmt.Name.Value, &Symbol{
+			Name:   stmt.Name.Value,
+			Type:   declaredType,
+			Line:   stmt.Name.Token.Line,
+			Column: stmt.Name.Token.Column,
+		})
 	}
 
-	// Store in environment
-	tc.env.Set(stmt.Name.Value, &Symbol{
-		Name:   stmt.Name.Value,
-		Type:   declaredType,
-		Line:   stmt.Name.Token.Line,
-		Column: stmt.Name.Token.Column,
-	})
+	// Type compatibility check
+	if !declaredType.Equals(valueType) {
+		tc.addError(
+			fmt.Sprintf("type mismatch: declared %s but got %s",
+				declaredType.String(), valueType.String()),
+			stmt.Token.Line, stmt.Token.Column,
+		)
+	}
 
 	return &VoidType{}
 }
