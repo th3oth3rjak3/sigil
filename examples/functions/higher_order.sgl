@@ -1,0 +1,9 @@
+let map = fun(val: Number, fn: (Number) -> Number): Number {
+    fn(val)
+}
+
+let plusOne = fun(val: Number): Number {
+    val + 1
+}
+
+map(1, plusOne)
